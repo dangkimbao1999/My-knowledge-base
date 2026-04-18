@@ -1,0 +1,367 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum EntryType {
+  journal
+  note
+  book
+  reflection
+  book_note
+  idea
+  project_note
+  person_note
+}
+
+enum EntryVisibility {
+  private
+  public
+}
+
+enum EntryPublishMode {
+  none
+  summary_only
+  notes_only
+  summary_and_notes
+}
+
+enum ContentFormat {
+  markdown
+  plain_text
+  extracted_pdf_text
+}
+
+enum SourceTextKind {
+  raw_text
+  extracted_pdf_text
+}
+
+enum FileSourceKind {
+  pdf
+}
+
+enum FileProcessingState {
+  pending
+  uploaded
+  extracting
+  ready
+  failed
+}
+
+enum NoteType {
+  general
+  chapter_reflection
+  overall_reflection
+  lesson_learned
+  personal_note
+}
+
+enum AIArtifactStatus {
+  active
+  superseded
+  failed
+}
+
+enum RelationType {
+  related
+  references
+  expands
+  contradicts
+}
+
+enum BlogPostStatus {
+  draft
+  published
+  unpublished
+}
+
+enum ProcessingJobType {
+  extract_pdf_text
+  process_entry
+  generate_summary
+  extract_topics
+  extract_knowledge
+  link_relations
+  reindex_search
+}
+
+enum ProcessingState {
+  pending
+  queued
+  running
+  completed
+  failed
+}
+
+model User {
+  id             String          @id @default(uuid())
+  username       String          @unique
+  email          String?         @unique
+  passwordHash   String
+  displayName    String
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  entries        Entry[]
+  files          EntryFileSource[]
+  notes          EntryNote[]
+  tags           Tag[]
+  processingJobs ProcessingJob[]
+}
+
+model Entry {
+  id                     String            @id @default(uuid())
+  ownerId                String
+  entryType              EntryType
+  title                  String
+  author                 String?
+  excerpt                String?
+  logicalPath            String?
+  aliases                String[]          @default([])
+  visibility             EntryVisibility   @default(private)
+  publishMode            EntryPublishMode  @default(none)
+  publishedAt            DateTime?
+  archivedAt             DateTime?
+  latestSourceVersion    Int               @default(1)
+  latestAIVersion        Int               @default(1)
+  searchDocument         String?
+  searchVector           Unsupported("tsvector")?
+  processingState        ProcessingState   @default(pending)
+  lastProcessedAt        DateTime?
+  lastProcessingError    String?
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+  owner                  User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  textSources            EntryTextSource[]
+  fileSources            EntryFileSource[]
+  notes                  EntryNote[]
+  aiSummaries            AISummary[]
+  aiTopics               AITopic[]
+  aiKnowledgeItems       AIKnowledgeItem[]
+  outgoingLinks          EntryLink[]       @relation("SourceEntryLinks")
+  incomingLinks          EntryLink[]       @relation("TargetEntryLinks")
+  outgoingRelations      EntryRelation[]   @relation("SourceEntryRelations")
+  incomingRelations      EntryRelation[]   @relation("TargetEntryRelations")
+  entryTags              EntryTag[]
+  blogPost               BlogPost?
+
+  @@index([ownerId, createdAt(sort: Desc)])
+  @@index([ownerId, entryType, visibility])
+  @@index([ownerId, title])
+  @@index([visibility, publishedAt])
+}
+
+model EntryTextSource {
+  id                 String         @id @default(uuid())
+  entryId            String
+  sourceKind         SourceTextKind
+  contentFormat      ContentFormat  @default(markdown)
+  version            Int            @default(1)
+  content            String
+  plainText          String?
+  wordCount          Int?
+  extractionMetadata Json?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  entry              Entry          @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@index([entryId, sourceKind, version(sort: Desc)])
+}
+
+model EntryLink {
+  id            String    @id @default(uuid())
+  sourceEntryId  String
+  targetEntryId  String?
+  targetTitle    String
+  linkText       String?
+  createdAt      DateTime  @default(now())
+  sourceEntry    Entry      @relation("SourceEntryLinks", fields: [sourceEntryId], references: [id], onDelete: Cascade)
+  targetEntry    Entry?     @relation("TargetEntryLinks", fields: [targetEntryId], references: [id], onDelete: SetNull)
+
+  @@index([sourceEntryId])
+  @@index([targetEntryId])
+  @@index([targetTitle])
+}
+
+model EntryFileSource {
+  id                    String              @id @default(uuid())
+  ownerId               String
+  entryId               String?
+  fileKind              FileSourceKind
+  storageKey            String              @unique
+  originalFileName      String
+  mimeType              String
+  sizeBytes             Int
+  checksumSha256        String
+  extractionTextSourceId String?
+  processingState       FileProcessingState @default(pending)
+  extractedTextStatus   ProcessingState     @default(pending)
+  extractionError       String?
+  metadata              Json?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  owner                 User                @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  entry                 Entry?              @relation(fields: [entryId], references: [id], onDelete: SetNull)
+
+  @@index([ownerId, createdAt(sort: Desc)])
+  @@index([entryId])
+  @@index([checksumSha256])
+}
+
+model EntryNote {
+  id            String    @id @default(uuid())
+  entryId        String
+  ownerId        String
+  noteType       NoteType
+  title          String?
+  content        String
+  chapterLabel   String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  entry          Entry     @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  owner          User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([entryId, noteType, createdAt(sort: Desc)])
+  @@index([ownerId, createdAt(sort: Desc)])
+}
+
+model AISummary {
+  id                  String           @id @default(uuid())
+  entryId             String
+  version             Int              @default(1)
+  status              AIArtifactStatus @default(active)
+  summaryMarkdown     String
+  sourceSnapshotHash  String
+  modelName           String
+  promptVersion       String
+  createdAt           DateTime         @default(now())
+  entry               Entry            @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@index([entryId, version(sort: Desc)])
+}
+
+model AITopic {
+  id                  String           @id @default(uuid())
+  entryId             String
+  version             Int              @default(1)
+  status              AIArtifactStatus @default(active)
+  topic               String
+  slug                String
+  confidence          Decimal?         @db.Decimal(4, 3)
+  sourceReferences    Json?
+  sourceSnapshotHash  String
+  modelName           String
+  promptVersion       String
+  createdAt           DateTime         @default(now())
+  entry               Entry            @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@index([entryId, version(sort: Desc)])
+  @@index([slug])
+}
+
+model AIKnowledgeItem {
+  id                  String           @id @default(uuid())
+  entryId             String
+  version             Int              @default(1)
+  status              AIArtifactStatus @default(active)
+  title               String
+  content             String
+  sourceChunkId       String?
+  sourceReferences    Json?
+  sourceSnapshotHash  String
+  modelName           String
+  promptVersion       String
+  embedding           Json?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  entry               Entry            @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@index([entryId, version(sort: Desc)])
+}
+
+model EntryRelation {
+  id                  String       @id @default(uuid())
+  sourceEntryId       String
+  targetEntryId       String
+  relationType        RelationType
+  rationale           String?
+  confidence          Decimal?     @db.Decimal(4, 3)
+  createdAt           DateTime     @default(now())
+  sourceEntry         Entry        @relation("SourceEntryRelations", fields: [sourceEntryId], references: [id], onDelete: Cascade)
+  targetEntry         Entry        @relation("TargetEntryRelations", fields: [targetEntryId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceEntryId, targetEntryId, relationType])
+  @@index([sourceEntryId])
+  @@index([targetEntryId])
+}
+
+model Tag {
+  id          String      @id @default(uuid())
+  ownerId     String
+  name        String
+  slug        String
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  owner       User        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  entryTags   EntryTag[]
+
+  @@unique([ownerId, slug])
+}
+
+model EntryTag {
+  entryId      String
+  tagId        String
+  createdAt    DateTime  @default(now())
+  entry        Entry     @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  tag          Tag       @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([entryId, tagId])
+  @@index([tagId])
+}
+
+model BlogPost {
+  id                   String          @id @default(uuid())
+  entryId              String          @unique
+  slug                 String          @unique
+  title                String
+  description          String?
+  status               BlogPostStatus  @default(draft)
+  publishedContent     String
+  publishedSummaryId   String?
+  publishedAt          DateTime?
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+  entry                Entry           @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@index([status, publishedAt(sort: Desc)])
+}
+
+model ProcessingJob {
+  id                String            @id @default(uuid())
+  ownerId           String
+  entryId           String?
+  fileId            String?
+  jobType           ProcessingJobType
+  state             ProcessingState   @default(pending)
+  attempts          Int               @default(0)
+  maxAttempts       Int               @default(3)
+  triggeredBy       String?
+  payload           Json?
+  result            Json?
+  errorMessage      String?
+  queuedAt          DateTime?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  owner             User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, createdAt(sort: Desc)])
+  @@index([entryId, createdAt(sort: Desc)])
+  @@index([state, createdAt(sort: Desc)])
+  @@index([jobType, state])
+}
