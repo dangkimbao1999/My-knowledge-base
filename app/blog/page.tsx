@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PublicBlogChat } from "@/components/blog/public-blog-chat";
 import { blogService } from "@/modules/blog/blog.service";
 
 export const dynamic = "force-dynamic";
@@ -88,6 +89,8 @@ export default async function BlogPage() {
           <strong>Reload public journal dashboard</strong>
         </Link>
       </section>
+
+      <PublicBlogChat />
 
       <div className="blog-grid">
         <section className="blog-section">
