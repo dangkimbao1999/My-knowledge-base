@@ -1,6 +1,7 @@
 import { ApiError } from "@/lib/api";
 import { extractWikiLinks, toPlainText } from "@/lib/markdown";
 import { prisma } from "@/lib/prisma";
+import { refreshEntrySearchDocument } from "@/modules/entries/search-document";
 import type {
   ContentFormat,
   EntryPublishMode,
@@ -153,6 +154,30 @@ type EntryRecord = Prisma.EntryGetPayload<{
   include: typeof entryInclude;
 }>;
 
+type NavigationEntryRecord = {
+  id: string;
+  title: string;
+  logicalPath: string | null;
+  entryType: EntryType;
+  visibility: EntryVisibility;
+  updatedAt: Date;
+};
+
+type NavigationNode = {
+  id: string;
+  name: string;
+  path: string | null;
+  children: NavigationNode[];
+  entries: Array<{
+    id: string;
+    title: string;
+    logicalPath: string | null;
+    entryType: EntryType;
+    visibility: EntryVisibility;
+    updatedAt: string;
+  }>;
+};
+
 async function ensureTargetUser(userId: string) {
   const user = await prisma.user.findUnique({
     where: {
@@ -181,30 +206,6 @@ async function findOwnedEntry(userId: string, entryId: string) {
   }
 
   return entry;
-}
-
-function buildSearchDocument(input: {
-  title: string;
-  excerpt?: string | null;
-  logicalPath?: string | null;
-  aliases: string[];
-  tags: string[];
-  plainText?: string | null;
-  author?: string | null;
-  wikiTargetTitles: string[];
-}) {
-  return [
-    input.title,
-    input.excerpt ?? "",
-    input.logicalPath ?? "",
-    input.author ?? "",
-    ...input.aliases,
-    ...input.tags,
-    input.plainText ?? "",
-    ...input.wikiTargetTitles
-  ]
-    .join("\n")
-    .trim();
 }
 
 async function resolveWikiLinksForOwner(
@@ -401,6 +402,62 @@ function serializeEntry(entry: EntryRecord) {
   };
 }
 
+function buildNavigationTree(entries: NavigationEntryRecord[]) {
+  const root: NavigationNode = {
+    id: "root",
+    name: "Workspace",
+    path: null,
+    children: [],
+    entries: []
+  };
+
+  const nodeIndex = new Map<string, NavigationNode>([["", root]]);
+
+  for (const entry of entries) {
+    const normalizedPath = normalizeLogicalPath(entry.logicalPath) ?? "inbox";
+    const segments = normalizedPath.split("/").filter(Boolean);
+    let currentPath = "";
+    let parentNode = root;
+
+    for (const segment of segments) {
+      currentPath = currentPath ? `${currentPath}/${segment}` : segment;
+
+      if (!nodeIndex.has(currentPath)) {
+        const node: NavigationNode = {
+          id: currentPath,
+          name: segment,
+          path: currentPath,
+          children: [],
+          entries: []
+        };
+
+        parentNode.children.push(node);
+        nodeIndex.set(currentPath, node);
+      }
+
+      parentNode = nodeIndex.get(currentPath)!;
+    }
+
+    parentNode.entries.push({
+      id: entry.id,
+      title: entry.title,
+      logicalPath: entry.logicalPath,
+      entryType: entry.entryType,
+      visibility: entry.visibility,
+      updatedAt: entry.updatedAt.toISOString()
+    });
+  }
+
+  function sortNode(node: NavigationNode): NavigationNode {
+    node.children.sort((left, right) => left.name.localeCompare(right.name));
+    node.entries.sort((left, right) => left.title.localeCompare(right.title));
+    node.children.forEach(sortNode);
+    return node;
+  }
+
+  return sortNode(root);
+}
+
 export const entriesService = {
   async createTextEntry(userId: string, input: CreateTextEntryInput) {
     await ensureTargetUser(userId);
@@ -434,27 +491,10 @@ export const entriesService = {
         include: entryInclude
       });
 
-      const syncedTags = await syncTags(tx, userId, entry.id, normalizedTags);
-      const syncedLinks = await syncLinks(tx, userId, entry.id, input.content, input.contentFormat);
+      await syncTags(tx, userId, entry.id, normalizedTags);
+      await syncLinks(tx, userId, entry.id, input.content, input.contentFormat);
       await refreshResolvedLinksForOwner(tx, userId);
-
-      await tx.entry.update({
-        where: {
-          id: entry.id
-        },
-        data: {
-          searchDocument: buildSearchDocument({
-            title: entry.title,
-            excerpt: entry.excerpt,
-            logicalPath: entry.logicalPath,
-            aliases: entry.aliases,
-            tags: syncedTags,
-            plainText,
-            author: entry.author,
-            wikiTargetTitles: syncedLinks.map((link) => link.targetTitle)
-          })
-        }
-      });
+      await refreshEntrySearchDocument(tx, entry.id);
 
       return tx.entry.findUniqueOrThrow({
         where: {
@@ -504,23 +544,7 @@ export const entriesService = {
       }
 
       await refreshResolvedLinksForOwner(tx, userId);
-
-      await tx.entry.update({
-        where: {
-          id: entry.id
-        },
-        data: {
-          searchDocument: buildSearchDocument({
-            title: entry.title,
-            excerpt: entry.excerpt,
-            logicalPath: entry.logicalPath,
-            aliases: entry.aliases,
-            tags: normalizedTags,
-            author: entry.author,
-            wikiTargetTitles: []
-          })
-        }
-      });
+      await refreshEntrySearchDocument(tx, entry.id);
 
       return tx.entry.findUniqueOrThrow({
         where: {
@@ -609,6 +633,35 @@ export const entriesService = {
     return serializeEntry(await findOwnedEntry(userId, entryId));
   },
 
+  async getNavigationTree(userId: string) {
+    const entries = await prisma.entry.findMany({
+      where: {
+        ownerId: userId
+      },
+      select: {
+        id: true,
+        title: true,
+        logicalPath: true,
+        entryType: true,
+        visibility: true,
+        updatedAt: true
+      },
+      orderBy: [
+        {
+          logicalPath: "asc"
+        },
+        {
+          title: "asc"
+        }
+      ]
+    });
+
+    return {
+      root: buildNavigationTree(entries),
+      totalEntries: entries.length
+    };
+  },
+
   async updateEntry(userId: string, entryId: string, input: UpdateEntryInput) {
     const currentEntry = await findOwnedEntry(userId, entryId);
     const currentTextSource = currentEntry.textSources[0] ?? null;
@@ -680,30 +733,7 @@ export const entriesService = {
 
       await refreshResolvedLinksForOwner(tx, userId);
 
-      const finalEntry = await tx.entry.findUniqueOrThrow({
-        where: {
-          id: entryId
-        },
-        include: entryInclude
-      });
-
-      await tx.entry.update({
-        where: {
-          id: entryId
-        },
-        data: {
-          searchDocument: buildSearchDocument({
-            title: finalEntry.title,
-            excerpt: finalEntry.excerpt,
-            logicalPath: finalEntry.logicalPath,
-            aliases: finalEntry.aliases,
-            tags: finalEntry.entryTags.map((entryTag) => entryTag.tag.name),
-            plainText: finalEntry.textSources[0]?.plainText ?? null,
-            author: finalEntry.author,
-            wikiTargetTitles: finalEntry.outgoingLinks.map((link) => link.targetTitle)
-          })
-        }
-      });
+      await refreshEntrySearchDocument(tx, entryId);
 
       return tx.entry.findUniqueOrThrow({
         where: {
@@ -742,28 +772,9 @@ export const entriesService = {
   },
 
   async updateTags(userId: string, entryId: string, tags: string[]) {
-    const currentEntry = await findOwnedEntry(userId, entryId);
-
     const updated = await prisma.$transaction(async (tx) => {
-      const syncedTags = await syncTags(tx, userId, entryId, tags);
-
-      await tx.entry.update({
-        where: {
-          id: entryId
-        },
-        data: {
-          searchDocument: buildSearchDocument({
-            title: currentEntry.title,
-            excerpt: currentEntry.excerpt,
-            logicalPath: currentEntry.logicalPath,
-            aliases: currentEntry.aliases,
-            tags: syncedTags,
-            plainText: currentEntry.textSources[0]?.plainText ?? null,
-            author: currentEntry.author,
-            wikiTargetTitles: currentEntry.outgoingLinks.map((link) => link.targetTitle)
-          })
-        }
-      });
+      await syncTags(tx, userId, entryId, tags);
+      await refreshEntrySearchDocument(tx, entryId);
 
       return tx.entry.findUniqueOrThrow({
         where: {

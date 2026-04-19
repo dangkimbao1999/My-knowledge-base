@@ -22,6 +22,8 @@ function buildPublishedContent(input: {
   entryType: string;
   title: string;
   excerpt?: string | null;
+  summaryMarkdown?: string | null;
+  notesMarkdown?: string | null;
   markdown?: string | null;
   publishMode: string;
 }) {
@@ -43,14 +45,45 @@ function buildPublishedContent(input: {
   }
 
   if (input.publishMode === "summary_only") {
+    if (input.summaryMarkdown) {
+      sections.push(input.summaryMarkdown);
+      return sections.join("\n\n");
+    }
+
     if (!input.excerpt) {
       throw new ApiError(
-        "Summary-only publish mode requires an excerpt for now.",
+        "Summary-only publish mode requires an AI summary or excerpt.",
         400
       );
     }
 
     return sections.join("\n\n");
+  }
+
+  if (input.publishMode === "notes_only") {
+    if (input.notesMarkdown) {
+      sections.push(input.notesMarkdown);
+      return sections.join("\n\n");
+    }
+
+    if (input.markdown) {
+      sections.push(input.markdown);
+      return sections.join("\n\n");
+    }
+  }
+
+  if (input.publishMode === "summary_and_notes") {
+    if (input.summaryMarkdown) {
+      sections.push(input.summaryMarkdown);
+    }
+
+    if (input.notesMarkdown) {
+      sections.push(input.notesMarkdown);
+    }
+
+    if (sections.length > 1) {
+      return sections.join("\n\n");
+    }
   }
 
   if (input.markdown) {
@@ -100,6 +133,20 @@ export const blogService = {
           },
           take: 1
         },
+        notes: {
+          orderBy: {
+            createdAt: "asc"
+          }
+        },
+        aiSummaries: {
+          where: {
+            status: "active"
+          },
+          orderBy: {
+            version: "desc"
+          },
+          take: 1
+        },
         blogPost: true
       }
     });
@@ -119,6 +166,13 @@ export const blogService = {
     }
 
     const latestTextSource = entry.textSources[0] ?? null;
+    const latestSummary = entry.aiSummaries[0] ?? null;
+    const notesMarkdown = entry.notes
+      .map((note) => {
+        const heading = note.title ?? note.chapterLabel ?? note.noteType;
+        return `## ${heading}\n\n${note.content}`;
+      })
+      .join("\n\n");
     const publishMode =
       input.publishMode ??
       (entry.publishMode === "none" ? "notes_only" : entry.publishMode);
@@ -126,6 +180,8 @@ export const blogService = {
       entryType: entry.entryType,
       title: input.title ?? entry.title,
       excerpt: input.description ?? entry.excerpt,
+      summaryMarkdown: latestSummary?.summaryMarkdown ?? null,
+      notesMarkdown: notesMarkdown || null,
       markdown: latestTextSource?.content ?? null,
       publishMode
     });

@@ -1,5 +1,7 @@
 :root {
   color-scheme: light;
+  --font-sans: "Be Vietnam Pro", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
   --background: #f3efe5;
   --foreground: #1b1814;
   --accent: #c96f31;
@@ -18,7 +20,10 @@ body {
   padding: 0;
   background: radial-gradient(circle at top, #fff8ee, var(--background));
   color: var(--foreground);
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: var(--font-sans);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 * {
@@ -167,7 +172,7 @@ select {
 
 .editor-textarea {
   min-height: 60vh;
-  font-family: "Courier New", Courier, monospace;
+  font-family: var(--font-sans);
   line-height: 1.55;
 }
 
@@ -268,6 +273,165 @@ select {
   gap: 20px;
 }
 
+.cms-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 300px) minmax(0, 1fr);
+  gap: 20px;
+  min-height: calc(100vh - 180px);
+}
+
+.cms-sidebar,
+.cms-editor {
+  min-width: 0;
+}
+
+.cms-sidebar {
+  padding: 18px 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 252, 247, 0.98), rgba(250, 243, 231, 0.92));
+}
+
+.cms-sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.cms-sidebar-tree {
+  display: grid;
+  gap: 6px;
+}
+
+.cms-tree-folder,
+.cms-tree-entry {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 14px;
+  cursor: pointer;
+}
+
+.cms-tree-folder {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  color: #4f3b2b;
+}
+
+.cms-tree-folder:hover,
+.cms-tree-entry:hover {
+  background: rgba(201, 111, 49, 0.08);
+}
+
+.cms-tree-entry {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  color: #5d4b3d;
+}
+
+.cms-tree-entry.active {
+  background: rgba(201, 111, 49, 0.16);
+  color: #2d2118;
+}
+
+.cms-tree-entry-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cms-tree-entry-meta {
+  font-size: 0.78rem;
+  color: var(--muted);
+  text-transform: lowercase;
+}
+
+.cms-editor {
+  padding: 26px;
+  display: grid;
+  gap: 20px;
+  background:
+    radial-gradient(circle at top right, rgba(201, 111, 49, 0.08), transparent 28%),
+    var(--surface);
+}
+
+.cms-editor-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.cms-properties {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.cms-property-wide {
+  grid-column: 1 / -1;
+}
+
+.cms-title-input {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.cms-editor-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+  gap: 18px;
+  align-items: start;
+}
+
+.cms-writing-area {
+  min-height: 72vh;
+  border-radius: 22px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.cms-preview-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.cms-preview {
+  min-height: 72vh;
+}
+
+.cms-publish-panel {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 22px;
+  border: 1px solid rgba(78, 47, 21, 0.12);
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.cms-publish-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.cms-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
 .editor-panel,
 .sidebar-panel {
   padding: 24px;
@@ -322,7 +486,7 @@ select {
 }
 
 .preview code {
-  font-family: "Courier New", Courier, monospace;
+  font-family: var(--font-mono);
 }
 
 .preview blockquote {
@@ -401,13 +565,20 @@ select {
 @media (max-width: 980px) {
   .auth-grid,
   .editor-layout,
-  .query-layout {
+  .query-layout,
+  .cms-layout,
+  .cms-editor-body {
     grid-template-columns: 1fr;
   }
 
   .hero-card-row,
-  .editor-grid {
+  .editor-grid,
+  .cms-properties {
     grid-template-columns: 1fr;
+  }
+
+  .cms-property-wide {
+    grid-column: auto;
   }
 }
 
@@ -420,8 +591,16 @@ select {
   .panel,
   .topbar,
   .editor-panel,
-  .sidebar-panel {
+  .sidebar-panel,
+  .cms-editor,
+  .cms-sidebar {
     padding: 20px;
     border-radius: 22px;
+  }
+
+  .cms-editor-header,
+  .cms-footer {
+    flex-direction: column;
+    align-items: stretch;
   }
 }

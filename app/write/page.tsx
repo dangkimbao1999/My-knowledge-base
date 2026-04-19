@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { EntryEditor } from "@/components/editor/entry-editor";
-import { WikiQueryPanel } from "@/components/query/wiki-query-panel";
 import { getOptionalAuth } from "@/lib/auth";
 import { authService } from "@/modules/auth/auth.service";
 import { entriesService } from "@/modules/entries/entries.service";
@@ -15,13 +14,14 @@ export default async function WritePage() {
 
   const user = await authService.currentUser(auth.userId);
   const entryResponse = await entriesService.listEntries(auth.userId, new URLSearchParams());
+  const navigation = await entriesService.getNavigationTree(auth.userId);
 
   return (
     <main className="shell write-shell">
       <section className="panel topbar">
         <div>
           <p className="panel-kicker">Second Brain Journal</p>
-          <h1>Write and inspect your entry graph.</h1>
+          <h1>Organize and write like a personal wiki.</h1>
           <p className="muted-copy">
             Signed in as {user.displayName} ({user.username})
           </p>
@@ -34,8 +34,7 @@ export default async function WritePage() {
         </div>
       </section>
 
-      <WikiQueryPanel />
-      <EntryEditor initialEntries={entryResponse.items} />
+      <EntryEditor initialEntries={entryResponse.items} initialNavigation={navigation.root} />
     </main>
   );
 }

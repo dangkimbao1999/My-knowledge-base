@@ -20,7 +20,11 @@ Backend-first scaffold for an AI-powered personal journaling and knowledge syste
 - Text entries are Markdown-first with derived plain-text and wiki-link extraction
 - Text `entryType` is inferred from `logicalPath` instead of being chosen in the UI
 - Minimal UI added: `/auth` and `/write`
+- `/write` now uses a CMS-style layout with left navigation from `logicalPath`
 - MVP "Query your wiki" added on `/write`
+- Entry notes/reflections now persist through Prisma
+- Text-entry AI processing now generates summaries, topics, knowledge items, and relations
+- Knowledge APIs now read real AI-derived artifacts from PostgreSQL
 - Blog publishing API and public UI added: `/blog` and `/blog/[slug]`
 - Docker and docker-compose added for local runtime
 - UI is intentionally minimal and focused on auth plus entry creation
@@ -37,14 +41,22 @@ Backend-first scaffold for an AI-powered personal journaling and knowledge syste
    - `OPENAI_API_BASE_DOCKER`
    - `LLM_MODEL`
    - `OPENAI_TEMPERATURE`
-6. Add PDF extraction and broader AI processing
+6. Trigger `POST /api/ai/entries/:entryId/process` to compile AI artifacts for a text entry
+7. PDF extraction remains deferred in the current milestone
 
 ## Screens
 
 - `/auth`: sign in with `APP_USERNAME` and `APP_PASSWORD`
-- `/write`: Markdown editor + live preview + recent saved entries + query-your-wiki panel
+- `/write`: Notion-like CMS shell with left sidebar navigation and right-side editor
 - `/blog`: public published posts
 - `/blog/[slug]`: public post detail
+
+## Useful APIs
+
+- `GET /api/entries`: list entries
+- `GET /api/entries/navigation`: get the sidebar tree built from `logicalPath`
+- `GET /api/entries/:entryId`: get one entry
+- `PATCH /api/entries/:entryId`: update one entry
 
 ## Docker
 
