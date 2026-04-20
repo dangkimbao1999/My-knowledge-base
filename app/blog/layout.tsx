@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
+import { BlogSidebarNav } from "@/components/blog/blog-sidebar-nav";
+import { blogService } from "@/modules/blog/blog.service";
 import "./theme.css";
 
 const blogHeadline = Space_Grotesk({
@@ -21,7 +23,11 @@ const blogMono = JetBrains_Mono({
   weight: ["400", "500", "700"]
 });
 
-export default function BlogLayout({ children }: { children: ReactNode }) {
+export const dynamic = "force-dynamic";
+
+export default async function BlogLayout({ children }: { children: ReactNode }) {
+  const logicalPaths = await blogService.listLogicalPaths();
+
   return (
     <div className={`${blogHeadline.variable} ${blogBody.variable} ${blogMono.variable} blog-kernel`}>
       <aside className="blog-sidebar">
@@ -32,24 +38,7 @@ export default function BlogLayout({ children }: { children: ReactNode }) {
           <div className="blog-sidebar-status">STATUS: OPERATIONAL</div>
         </div>
 
-        <nav className="blog-sidebar-nav">
-          <Link className="blog-sidebar-link active" href="/blog">
-            <span className="blog-sidebar-link-icon">&gt;_</span>
-            <span>ROOT/journal</span>
-          </Link>
-          <div className="blog-sidebar-link">
-            <span className="blog-sidebar-link-icon">::</span>
-            <span>ROOT/nodes</span>
-          </div>
-          <div className="blog-sidebar-link">
-            <span className="blog-sidebar-link-icon">[]</span>
-            <span>ROOT/archive</span>
-          </div>
-          <div className="blog-sidebar-link">
-            <span className="blog-sidebar-link-icon">{`{}`}</span>
-            <span>ROOT/config</span>
-          </div>
-        </nav>
+        <BlogSidebarNav logicalPaths={logicalPaths} />
 
         {/* <div className="blog-sidebar-cta">
           <Link className="blog-sidebar-button" href="/write">

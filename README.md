@@ -24,8 +24,12 @@ Backend-first scaffold for an AI-powered personal journaling and knowledge syste
 - MVP "Query your wiki" added on `/write`
 - Entry notes/reflections now persist through Prisma
 - Text-entry AI processing now generates summaries, topics, knowledge items, and relations
+- Processing also extracts grounded claims and entities linked back to source chunks
+- Processing now also chunks source text into evidence units and can store chunk embeddings
 - Knowledge APIs now read real AI-derived artifacts from PostgreSQL
 - Blog publishing API and public UI added: `/blog` and `/blog/[slug]`
+- Internal wiki retrieval is now hybrid-ready: lexical first with semantic reranking when embeddings are available
+- Unified search now exposes chunk, entry, knowledge item, claim, entity, and topic views
 - Docker and docker-compose added for local runtime
 - UI is intentionally minimal and focused on auth plus entry creation
 
@@ -38,10 +42,10 @@ Backend-first scaffold for an AI-powered personal journaling and knowledge syste
 5. Set AI env vars if you want to use "Query your wiki":
    - `OPENAI_API_KEY`
    - `OPENAI_API_BASE`
-   - `OPENAI_API_BASE_DOCKER`
    - `LLM_MODEL`
+   - `EMBEDDING_MODEL`
    - `OPENAI_TEMPERATURE`
-6. Trigger `POST /api/ai/entries/:entryId/process` to compile AI artifacts for a text entry
+6. Trigger `POST /api/ai/entries/:entryId/process` to compile AI artifacts and source chunks for a text entry
 7. PDF extraction remains deferred in the current milestone
 
 ## Screens
@@ -57,6 +61,9 @@ Backend-first scaffold for an AI-powered personal journaling and knowledge syste
 - `GET /api/entries/navigation`: get the sidebar tree built from `logicalPath`
 - `GET /api/entries/:entryId`: get one entry
 - `PATCH /api/entries/:entryId`: update one entry
+- `GET /api/search`: unified internal search returning chunk, entry, knowledge item, claim, entity, and topic views
+- `GET /api/knowledge`: aggregated knowledge list with evidence-backed items, claims, and entities
+- `GET /api/knowledge/topics/:topicSlug`: topic detail drill-down with entries, claims, entities, and evidence-backed knowledge
 
 ## Docker
 

@@ -26,9 +26,7 @@ type OpenAIResponsePayload = {
   };
 };
 
-function buildSourceContext(
-  sources: Awaited<ReturnType<typeof retrieveWikiSources>>
-) {
+function buildSourceContext(sources: Awaited<ReturnType<typeof retrieveWikiSources>>) {
   return sources
     .map((source, index) => {
       const ref = `S${index + 1}`;
@@ -36,12 +34,29 @@ function buildSourceContext(
       return [
         `[${ref}] ${source.title}`,
         `entryType: ${source.entryType}`,
+        `sourceType: ${source.sourceType}`,
+        `chunkIndex: ${source.chunkIndex}`,
         `logicalPath: ${source.logicalPath ?? "-"}`,
         `tags: ${source.tags.join(", ") || "-"}`,
         `updatedAt: ${source.updatedAt}`,
         `excerpt: ${source.excerpt ?? "-"}`,
         `snippet: ${source.snippet || "-"}`,
-        `plainText: ${source.plainText.slice(0, 3000) || "-"}`
+        `knowledge evidence: ${
+          source.evidence.map((item) => `${item.title}: ${item.content}`).join(" | ") || "-"
+        }`,
+        `claims: ${
+          source.claims
+            .map(
+              (item) =>
+                `${item.claimType}: ${item.content}${
+                  item.entities.length > 0
+                    ? ` [entities: ${item.entities.map((entity) => entity.name).join(", ")}]`
+                    : ""
+                }`
+            )
+            .join(" | ") || "-"
+        }`,
+        `source chunk: ${source.chunkText.slice(0, 2400) || "-"}`
       ].join("\n");
     })
     .join("\n\n---\n\n");
@@ -80,7 +95,8 @@ async function generateWikiAnswer(query: string, sourceContext: string) {
             {
               type: "input_text",
               text:
-                "You answer questions only from the provided personal wiki sources. " +
+                "You answer questions only from the provided personal wiki source chunks and evidence. " +
+                "Treat source chunks as authoritative and extracted knowledge as supporting structure only. " +
                 "Do not use outside knowledge. If the sources are insufficient, say so clearly. " +
                 "Respond in the same language as the user. Format the answer in Markdown. " +
                 "Cite supporting sources inline with brackets like [S1]. End with a short `Sources` list."
@@ -103,10 +119,7 @@ async function generateWikiAnswer(query: string, sourceContext: string) {
   const payload = (await response.json()) as OpenAIResponsePayload;
 
   if (!response.ok) {
-    throw new ApiError(
-      payload.error?.message || "OpenAI query request failed",
-      response.status
-    );
+    throw new ApiError(payload.error?.message || "OpenAI query request failed", response.status);
   }
 
   const answer = extractOutputText(payload);
@@ -136,8 +149,7 @@ export const wikiQueryService = {
     if (sources.length === 0) {
       return {
         query: input.query,
-        answerMarkdown:
-          "Chưa tìm thấy entry nào đủ liên quan trong wiki cho câu hỏi này.",
+        answerMarkdown: "Chưa tìm thấy source chunk nào đủ liên quan trong wiki cho câu hỏi này.",
         sources: [],
         model: null,
         usage: null

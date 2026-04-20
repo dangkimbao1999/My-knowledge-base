@@ -26,8 +26,16 @@ function formatShortDate(value: string | null) {
   });
 }
 
-export default async function BlogPage() {
-  const blogPosts = await blogService.listPosts();
+type BlogPageProps = {
+  searchParams?: Promise<{
+    path?: string;
+  }>;
+};
+
+export default async function BlogPage({ searchParams }: BlogPageProps) {
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const activePath = resolvedSearchParams?.path?.trim() || null;
+  const blogPosts = await blogService.listPostsByLogicalPath(activePath);
   const posts = blogPosts.items;
   const totalPosts = posts.length;
   const totalWords = posts.reduce((sum, post) => {
@@ -47,6 +55,11 @@ export default async function BlogPage() {
           <h1 className="blog-hero-title">
             PUBLIC <span className="blog-accent">JOURNAL</span>.
           </h1>
+          {activePath ? (
+            <div className="blog-active-filter">
+              FILTER_PATH: <span>{activePath}</span>
+            </div>
+          ) : null}
           <div className="blog-meta-stack" style={{ marginTop: 14 }}>
             <div className="blog-meta-line">
               <span>[TIMESTAMP]</span>
@@ -66,12 +79,12 @@ export default async function BlogPage() {
         <div className="blog-terminal-line">
           <span className="blog-terminal-prompt">system@brain:~$</span> tail -n 1 /var/log/public_journal
           <div className="blog-terminal-output">
-            &gt;&gt; PUBLIC_FEED: {totalPosts} PUBLISHED_NODES. AVG_SIZE: {averageWords} WORDS. STATE: STABLE.
+            &gt;&gt; PUBLIC_FEED: {totalPosts} PUBLISHED_NODES. AVG_SIZE: {averageWords} WORDS. FILTER: {activePath ?? "ALL"}. STATE: STABLE.
           </div>
         </div>
       </section>
 
-      <section className="blog-quick-actions">
+      {/* <section className="blog-quick-actions">
         <Link className="blog-action-card" href="/write">
           <span>[NEW_ENTRY]</span>
           <strong>Open CMS workspace</strong>
@@ -88,7 +101,19 @@ export default async function BlogPage() {
           <span>[REFRESH_FEED]</span>
           <strong>Reload public journal dashboard</strong>
         </Link>
-      </section>
+      </section> */}
+
+      {activePath ? (
+        <section className="blog-filter-banner">
+          <div className="blog-filter-copy">
+            <span className="blog-kicker">path filter active</span>
+            <strong>Showing only public posts from `{activePath}`</strong>
+          </div>
+          <Link className="blog-filter-clear" href="/blog">
+            CLEAR_FILTER
+          </Link>
+        </section>
+      ) : null}
 
       <PublicBlogChat />
 
@@ -115,6 +140,7 @@ export default async function BlogPage() {
                       <div className="blog-entry-tags">
                         <span className="blog-entry-chip">PUBLIC_NODE</span>
                         <span className="blog-entry-hash">#{post.slug}</span>
+                        {post.logicalPath ? <span className="blog-entry-path">{post.logicalPath}</span> : null}
                       </div>
                       {post.description ? (
                         <div className="blog-terminal-output">{post.description}</div>

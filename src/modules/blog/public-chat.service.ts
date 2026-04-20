@@ -1,5 +1,6 @@
 import { env } from "@/config/env";
 import { ApiError } from "@/lib/api";
+import { buildSnippet, countMatches, splitIntoSourceChunks, tokenize } from "@/lib/retrieval";
 import { prisma } from "@/lib/prisma";
 
 type QueryPublicBlogInput = {
@@ -12,10 +13,12 @@ type PublicBlogSource = {
   slug: string;
   title: string;
   description: string | null;
-  publishedContent: string;
   publishedAt: string | null;
   score: number;
   snippet: string;
+  sourceType: "published_chunk";
+  chunkIndex: number;
+  chunkText: string;
 };
 
 type OpenAIResponsePayload = {
@@ -36,51 +39,52 @@ type OpenAIResponsePayload = {
   };
 };
 
-function tokenize(value: string) {
-  return [
-    ...new Set(
-      value
-        .toLowerCase()
-        .split(/[^\p{L}\p{N}]+/u)
-        .filter((token) => token.length > 1)
-    )
-  ];
-}
+function scorePublishedChunk(
+  post: {
+    id: string;
+    slug: string;
+    title: string;
+    description: string | null;
+    publishedContent: string;
+    publishedAt: Date | null;
+  },
+  chunk: {
+    chunkIndex: number;
+    content: string;
+  },
+  question: string,
+  tokens: string[]
+) {
+  const title = post.title.toLowerCase();
+  const description = (post.description ?? "").toLowerCase();
+  const chunkText = chunk.content.toLowerCase();
+  const slug = post.slug.toLowerCase();
+  const normalizedQuestion = question.toLowerCase();
 
-function countMatches(haystack: string, tokens: string[]) {
-  const normalized = haystack.toLowerCase();
   let score = 0;
 
-  for (const token of tokens) {
-    if (normalized.includes(token)) {
-      score += 1;
-    }
+  if (title.includes(normalizedQuestion)) {
+    score += 28;
   }
+
+  if (description.includes(normalizedQuestion)) {
+    score += 18;
+  }
+
+  if (chunkText.includes(normalizedQuestion)) {
+    score += 22;
+  }
+
+  if (slug.includes(normalizedQuestion)) {
+    score += 10;
+  }
+
+  score += countMatches(title, tokens) * 8;
+  score += countMatches(description, tokens) * 5;
+  score += Math.min(24, countMatches(chunkText, tokens) * 3);
+  score += countMatches(slug, tokens) * 4;
 
   return score;
-}
-
-function buildSnippet(text: string, tokens: string[]) {
-  const compact = text.replace(/\s+/g, " ").trim();
-
-  if (!compact) {
-    return "";
-  }
-
-  const lowered = compact.toLowerCase();
-  const firstHit = tokens
-    .map((token) => lowered.indexOf(token))
-    .filter((index) => index >= 0)
-    .sort((left, right) => left - right)[0];
-
-  if (firstHit === undefined) {
-    return compact.slice(0, 220);
-  }
-
-  const start = Math.max(0, firstHit - 90);
-  const end = Math.min(compact.length, firstHit + 170);
-
-  return `${start > 0 ? "..." : ""}${compact.slice(start, end).trim()}${end < compact.length ? "..." : ""}`;
 }
 
 async function retrievePublicSources(question: string, limit = 5) {
@@ -91,52 +95,38 @@ async function retrievePublicSources(question: string, limit = 5) {
     },
     orderBy: {
       publishedAt: "desc"
+    },
+    select: {
+      id: true,
+      slug: true,
+      title: true,
+      description: true,
+      publishedContent: true,
+      publishedAt: true
     }
   });
 
-  return posts
-    .map((post) => {
-      const title = post.title.toLowerCase();
-      const description = (post.description ?? "").toLowerCase();
-      const content = post.publishedContent.toLowerCase();
-      const slug = post.slug.toLowerCase();
-      const normalizedQuestion = question.toLowerCase();
+  const rankedChunks = posts.flatMap((post) =>
+    splitIntoSourceChunks(post.publishedContent, {
+      maxChars: 1600,
+      overlapChars: 220,
+      minChars: 260
+    }).map((chunk) => ({
+      id: `${post.id}:${chunk.chunkIndex}`,
+      slug: post.slug,
+      title: post.title,
+      description: post.description,
+      publishedAt: post.publishedAt?.toISOString() ?? null,
+      chunkIndex: chunk.chunkIndex,
+      chunkText: chunk.content,
+      sourceType: "published_chunk" as const,
+      score: scorePublishedChunk(post, chunk, question, tokens),
+      snippet: buildSnippet(chunk.content || post.description || post.title, tokens)
+    }))
+  );
 
-      let score = 0;
-
-      if (title.includes(normalizedQuestion)) {
-        score += 30;
-      }
-
-      if (description.includes(normalizedQuestion)) {
-        score += 16;
-      }
-
-      if (content.includes(normalizedQuestion)) {
-        score += 12;
-      }
-
-      if (slug.includes(normalizedQuestion)) {
-        score += 10;
-      }
-
-      score += countMatches(title, tokens) * 8;
-      score += countMatches(description, tokens) * 5;
-      score += Math.min(18, countMatches(content, tokens) * 2);
-      score += countMatches(slug, tokens) * 4;
-
-      return {
-        id: post.id,
-        slug: post.slug,
-        title: post.title,
-        description: post.description,
-        publishedContent: post.publishedContent,
-        publishedAt: post.publishedAt?.toISOString() ?? null,
-        score,
-        snippet: buildSnippet(post.publishedContent || post.description || post.title, tokens)
-      };
-    })
-    .filter((post) => post.score > 0)
+  return rankedChunks
+    .filter((chunk) => chunk.score > 0)
     .sort((left, right) => right.score - left.score)
     .slice(0, limit);
 }
@@ -169,10 +159,12 @@ async function generatePublicBlogAnswer(question: string, sources: PublicBlogSou
       return [
         `[${ref}] ${source.title}`,
         `slug: ${source.slug}`,
+        `sourceType: ${source.sourceType}`,
+        `chunkIndex: ${source.chunkIndex}`,
         `publishedAt: ${source.publishedAt ?? "-"}`,
         `description: ${source.description ?? "-"}`,
         `snippet: ${source.snippet || "-"}`,
-        `content: ${source.publishedContent.slice(0, 3200)}`
+        `published chunk: ${source.chunkText.slice(0, 2600)}`
       ].join("\n");
     })
     .join("\n\n---\n\n");
@@ -185,7 +177,7 @@ async function generatePublicBlogAnswer(question: string, sources: PublicBlogSou
     },
     body: JSON.stringify({
       model: env.LLM_MODEL,
-      temperature: 0.2,
+      temperature: env.OPENAI_TEMPERATURE,
       input: [
         {
           role: "developer",
@@ -194,7 +186,7 @@ async function generatePublicBlogAnswer(question: string, sources: PublicBlogSou
               type: "input_text",
               text:
                 "You are the public-facing guide for a person's blog. " +
-                "Answer strictly from the provided published sources only. " +
+                "Answer strictly from the provided published source chunks only. " +
                 "Never use private information, outside knowledge, or infer facts not supported by the public text. " +
                 "If the public material is insufficient, say that clearly. " +
                 "Respond in the same language as the visitor. " +
@@ -207,7 +199,7 @@ async function generatePublicBlogAnswer(question: string, sources: PublicBlogSou
           content: [
             {
               type: "input_text",
-              text: `Visitor question:\n${question}\n\nPublished sources:\n\n${sourceContext}`
+              text: `Visitor question:\n${question}\n\nPublished source chunks:\n\n${sourceContext}`
             }
           ]
         }
@@ -240,8 +232,7 @@ export const publicBlogChatService = {
     if (sources.length === 0) {
       return {
         question: input.question,
-        answerMarkdown:
-          "Mình chưa tìm thấy thông tin công khai phù hợp trên blog để trả lời câu hỏi này.",
+        answerMarkdown: "Mình chưa tìm thấy thông tin công khai đủ liên quan trên blog để trả lời câu hỏi này.",
         sources: [],
         model: null,
         usage: null

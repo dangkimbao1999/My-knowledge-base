@@ -65,6 +65,7 @@
   display: grid;
   gap: 4px;
   flex: 1;
+  align-content: start;
 }
 
 .blog-sidebar-link {
@@ -74,6 +75,7 @@
   padding: 12px 24px;
   font-size: 0.78rem;
   color: var(--blog-text);
+  min-width: 0;
 }
 
 .blog-sidebar-link.active {
@@ -90,6 +92,33 @@
 .blog-sidebar-link-icon {
   width: 24px;
   text-align: center;
+  flex: 0 0 24px;
+}
+
+.blog-sidebar-link span:nth-child(2) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.blog-sidebar-link-count {
+  margin-left: auto;
+  font-size: 0.64rem;
+  opacity: 0.72;
+}
+
+.blog-sidebar-section-label {
+  padding: 14px 24px 8px;
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  color: var(--blog-muted);
+}
+
+.blog-sidebar-empty {
+  padding: 0 24px;
+  font-size: 0.68rem;
+  color: rgba(185, 204, 175, 0.6);
 }
 
 .blog-sidebar-cta {
@@ -201,6 +230,18 @@
   font-weight: 700;
 }
 
+.blog-active-filter {
+  margin-top: 14px;
+  font-family: var(--blog-font-mono), monospace;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  color: var(--blog-green);
+}
+
+.blog-active-filter span {
+  color: var(--blog-text);
+}
+
 .blog-accent {
   color: var(--blog-green);
 }
@@ -244,6 +285,39 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
   max-width: 1200px;
+}
+
+.blog-filter-banner {
+  max-width: 1200px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 18px;
+  border: 1px solid rgba(0, 255, 0, 0.24);
+  background: rgba(0, 255, 0, 0.04);
+}
+
+.blog-filter-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.blog-filter-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  border: 1px solid var(--blog-green);
+  font-family: var(--blog-font-mono), monospace;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  color: var(--blog-green);
+}
+
+.blog-filter-clear:hover {
+  background: var(--blog-green);
+  color: var(--blog-black);
 }
 
 .blog-action-card {
@@ -511,6 +585,12 @@
 
 .blog-entry-hash {
   color: rgba(185, 204, 175, 0.64);
+}
+
+.blog-entry-path {
+  color: var(--blog-green);
+  border: 1px solid rgba(0, 255, 0, 0.22);
+  padding: 4px 8px;
 }
 
 .blog-entry-date {
@@ -921,6 +1001,11 @@
   .blog-topbar-indicators {
     width: 100%;
     justify-content: flex-start;
+  }
+
+  .blog-filter-banner {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .blog-hero {

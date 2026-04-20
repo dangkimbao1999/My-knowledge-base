@@ -1,7 +1,9 @@
 import { createHash } from "node:crypto";
 import type { Prisma } from "@/generated/prisma";
+import { env } from "@/config/env";
 import { ApiError } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
+import { splitIntoSourceChunks, type SourceChunkDraft } from "@/lib/retrieval";
 import { getAIProvider } from "@/modules/ai/ai.provider";
 import { refreshEntrySearchDocument } from "@/modules/entries/search-document";
 import { jobsService } from "@/modules/jobs/jobs.service";
@@ -12,6 +14,14 @@ type ProcessOptions = {
 };
 
 const PROMPT_VERSION = "wiki-pipeline-v1";
+const CLAIM_TYPES = new Set([
+  "statement",
+  "insight",
+  "reflection",
+  "preference",
+  "plan",
+  "question"
+]);
 
 function slugify(value: string) {
   return value
@@ -26,6 +36,17 @@ function compactText(value: string) {
   return value.replace(/\s+/g, " ").trim();
 }
 
+function normalizeClaimType(value?: string) {
+  if (!value) {
+    return "statement" as const;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  return CLAIM_TYPES.has(normalized)
+    ? (normalized as "statement" | "insight" | "reflection" | "preference" | "plan" | "question")
+    : ("statement" as const);
+}
+
 function hashSnapshot(value: string) {
   return createHash("sha256").update(value).digest("hex");
 }
@@ -34,6 +55,14 @@ function toNullableJsonValue(
   value?: Record<string, unknown>
 ): Prisma.InputJsonValue | undefined {
   if (value === undefined) {
+    return undefined;
+  }
+
+  return value as Prisma.InputJsonValue;
+}
+
+function toEmbeddingJsonValue(value?: number[]) {
+  if (!value || value.length === 0) {
     return undefined;
   }
 
@@ -113,7 +142,13 @@ async function markEntryState(
 }
 
 async function collectArtifactCounts(entryId: string) {
-  const [summaryCount, topicCount, knowledgeCount, relationCount] = await Promise.all([
+  const [chunkCount, summaryCount, topicCount, knowledgeCount, claimCount, relationCount] =
+    await Promise.all([
+    prisma.sourceChunk.count({
+      where: {
+        entryId
+      }
+    }),
     prisma.aISummary.count({
       where: {
         entryId,
@@ -132,6 +167,12 @@ async function collectArtifactCounts(entryId: string) {
         status: "active"
       }
     }),
+    prisma.knowledgeClaim.count({
+      where: {
+        entryId,
+        status: "active"
+      }
+    }),
     prisma.entryRelation.count({
       where: {
         sourceEntryId: entryId
@@ -140,11 +181,200 @@ async function collectArtifactCounts(entryId: string) {
   ]);
 
   return {
+    sourceChunks: chunkCount,
     summaries: summaryCount,
     topics: topicCount,
     knowledgeItems: knowledgeCount,
+    claims: claimCount,
     relations: relationCount
   };
+}
+
+async function persistSourceChunks(
+  tx: Prisma.TransactionClient,
+  input: {
+    entryId: string;
+    textSourceId: string;
+    sourceVersion: number;
+    sourceSnapshotHash: string;
+    chunks: SourceChunkDraft[];
+    embeddings?: Array<{
+      chunkIndex: number;
+      embedding: number[];
+    }>;
+    embeddingModel?: string | null;
+  }
+) {
+  await tx.sourceChunk.deleteMany({
+    where: {
+      entryId: input.entryId
+    }
+  });
+
+  if (input.chunks.length === 0) {
+    return [] as Array<{
+      id: string;
+      chunkIndex: number;
+      startOffset: number;
+      endOffset: number;
+      content: string;
+      tokenEstimate: number | null;
+    }>;
+  }
+
+  const embeddingByChunkIndex = new Map(
+    (input.embeddings ?? []).map((item) => [item.chunkIndex, item.embedding])
+  );
+  const embeddingUpdatedAt = input.embeddingModel ? new Date() : undefined;
+
+  await tx.sourceChunk.createMany({
+    data: input.chunks.map((chunk) => {
+      const embedding = embeddingByChunkIndex.get(chunk.chunkIndex);
+
+      return {
+        entryId: input.entryId,
+        textSourceId: input.textSourceId,
+        version: input.sourceVersion,
+        chunkIndex: chunk.chunkIndex,
+        startOffset: chunk.startOffset,
+        endOffset: chunk.endOffset,
+        content: chunk.content,
+        tokenEstimate: chunk.tokenEstimate,
+        embedding: toEmbeddingJsonValue(embedding),
+        embeddingModel: input.embeddingModel ?? undefined,
+        embeddingUpdatedAt,
+        sourceSnapshotHash: input.sourceSnapshotHash
+      };
+    })
+  });
+
+  return tx.sourceChunk.findMany({
+    where: {
+      entryId: input.entryId
+    },
+    orderBy: {
+      chunkIndex: "asc"
+    },
+    select: {
+      id: true,
+      chunkIndex: true,
+      startOffset: true,
+      endOffset: true,
+      content: true,
+      tokenEstimate: true
+    }
+  });
+}
+
+async function extractKnowledgeFromChunks(input: {
+  entryId: string;
+  title: string;
+  chunks: SourceChunkDraft[];
+}) {
+  const ai = getAIProvider();
+  const knowledgeItems: Array<{
+    chunkIndex: number;
+    title: string;
+    content: string;
+    sourceQuote?: string;
+  }> = [];
+
+  for (const chunk of input.chunks) {
+    const knowledge = await ai.extractKnowledge({
+      entryId: input.entryId,
+      title: `${input.title} // chunk ${chunk.chunkIndex + 1}`,
+      text: chunk.content
+    });
+
+    for (const item of knowledge.items) {
+      knowledgeItems.push({
+        chunkIndex: chunk.chunkIndex,
+        title: item.title,
+        content: item.content,
+        sourceQuote: item.sourceQuote
+      });
+    }
+  }
+
+  return {
+    items: knowledgeItems,
+    model: env.LLM_MODEL
+  };
+}
+
+async function extractClaimsFromChunks(input: {
+  entryId: string;
+  title: string;
+  chunks: SourceChunkDraft[];
+}) {
+  const ai = getAIProvider();
+  const claims: Array<{
+    chunkIndex: number;
+    content: string;
+    claimType: "statement" | "insight" | "reflection" | "preference" | "plan" | "question";
+    sourceQuote?: string;
+    entities: string[];
+  }> = [];
+
+  for (const chunk of input.chunks) {
+    const extracted = await ai.extractClaims({
+      entryId: input.entryId,
+      title: `${input.title} // chunk ${chunk.chunkIndex + 1}`,
+      text: chunk.content
+    });
+
+    for (const item of extracted.items) {
+      claims.push({
+        chunkIndex: chunk.chunkIndex,
+        content: item.content,
+        claimType: normalizeClaimType(item.claimType),
+        sourceQuote: item.sourceQuote,
+        entities: item.entities
+      });
+    }
+  }
+
+  return {
+    items: claims,
+    model: env.LLM_MODEL
+  };
+}
+
+async function generateChunkEmbeddings(chunks: SourceChunkDraft[]) {
+  if (!env.OPENAI_API_KEY || !env.EMBEDDING_MODEL || chunks.length === 0) {
+    return {
+      items: [] as Array<{
+        chunkIndex: number;
+        embedding: number[];
+      }>,
+      model: null as string | null
+    };
+  }
+
+  try {
+    const ai = getAIProvider();
+    const result = await ai.embedTexts({
+      texts: chunks.map((chunk) => chunk.content)
+    });
+
+    return {
+      items: result.vectors.map((embedding, index) => ({
+        chunkIndex: chunks[index]?.chunkIndex ?? index,
+        embedding
+      })),
+      model: result.model
+    };
+  } catch (error) {
+    console.warn("Chunk embedding generation failed; falling back to lexical-only retrieval.", error);
+
+    return {
+      items: [] as Array<{
+        chunkIndex: number;
+        embedding: number[];
+      }>,
+      model: null as string | null
+    };
+  }
 }
 
 async function buildRelations(
@@ -246,17 +476,34 @@ async function buildRelations(
 async function persistArtifacts(input: {
   entryId: string;
   ownerId: string;
+  textSourceId: string;
+  sourceVersion: number;
   plainText: string;
+  chunks: SourceChunkDraft[];
+  chunkEmbeddings: Array<{
+    chunkIndex: number;
+    embedding: number[];
+  }>;
+  embeddingModel: string | null;
   summaryMarkdown: string;
   summaryModel: string;
   topics: string[];
   topicsModel: string;
   knowledgeItems: Array<{
+    chunkIndex: number;
     title: string;
     content: string;
     sourceQuote?: string;
   }>;
   knowledgeModel: string;
+  claims: Array<{
+    chunkIndex: number;
+    content: string;
+    claimType: "statement" | "insight" | "reflection" | "preference" | "plan" | "question";
+    sourceQuote?: string;
+    entities: string[];
+  }>;
+  claimsModel: string;
   includeRelations: boolean;
   tagNames: string[];
   wikiTargetIds: string[];
@@ -270,6 +517,18 @@ async function persistArtifacts(input: {
 
     const nextVersion = entry.latestAIVersion + 1;
     const snapshotHash = hashSnapshot(input.plainText);
+    const persistedChunks = await persistSourceChunks(tx, {
+      entryId: input.entryId,
+      textSourceId: input.textSourceId,
+      sourceVersion: input.sourceVersion,
+      sourceSnapshotHash: snapshotHash,
+      chunks: input.chunks,
+      embeddings: input.chunkEmbeddings,
+      embeddingModel: input.embeddingModel
+    });
+    const chunkIdByIndex = new Map(
+      persistedChunks.map((chunk) => [chunk.chunkIndex, chunk])
+    );
 
     await tx.aISummary.updateMany({
       where: {
@@ -292,6 +551,16 @@ async function persistArtifacts(input: {
     });
 
     await tx.aIKnowledgeItem.updateMany({
+      where: {
+        entryId: input.entryId,
+        status: "active"
+      },
+      data: {
+        status: "superseded"
+      }
+    });
+
+    await tx.knowledgeClaim.updateMany({
       where: {
         entryId: input.entryId,
         status: "active"
@@ -333,23 +602,91 @@ async function persistArtifacts(input: {
 
     if (input.knowledgeItems.length > 0) {
       await tx.aIKnowledgeItem.createMany({
-        data: input.knowledgeItems.map((item, index) => ({
+        data: input.knowledgeItems.map((item) => {
+          const sourceChunk = chunkIdByIndex.get(item.chunkIndex);
+
+          return {
           entryId: input.entryId,
           version: nextVersion,
           status: "active",
           title: item.title,
           content: item.content,
-          sourceChunkId: `raw_text:${index + 1}`,
+          sourceChunkId: sourceChunk?.id,
           sourceReferences: item.sourceQuote
             ? toNullableJsonValue({
-                quote: item.sourceQuote
+                quote: item.sourceQuote,
+                chunkIndex: item.chunkIndex,
+                startOffset: sourceChunk?.startOffset,
+                endOffset: sourceChunk?.endOffset
               })
             : undefined,
           sourceSnapshotHash: snapshotHash,
           modelName: input.knowledgeModel,
           promptVersion: PROMPT_VERSION
-        }))
+        };
+        })
       });
+    }
+
+    for (const item of input.claims) {
+      const sourceChunk = chunkIdByIndex.get(item.chunkIndex);
+      const claim = await tx.knowledgeClaim.create({
+        data: {
+          ownerId: input.ownerId,
+          entryId: input.entryId,
+          version: nextVersion,
+          status: "active",
+          sourceChunkId: sourceChunk?.id,
+          claimType: item.claimType,
+          content: item.content,
+          sourceReferences: item.sourceQuote
+            ? toNullableJsonValue({
+                quote: item.sourceQuote,
+                chunkIndex: item.chunkIndex,
+                startOffset: sourceChunk?.startOffset,
+                endOffset: sourceChunk?.endOffset
+              })
+            : undefined,
+          sourceSnapshotHash: snapshotHash,
+          modelName: input.claimsModel,
+          promptVersion: PROMPT_VERSION
+        }
+      });
+
+      const uniqueEntities = [...new Set(item.entities.map((entity) => compactText(entity)).filter(Boolean))];
+
+      for (const entityName of uniqueEntities) {
+        const entity = await tx.entity.upsert({
+          where: {
+            ownerId_slug: {
+              ownerId: input.ownerId,
+              slug: slugify(entityName) || "entity"
+            }
+          },
+          update: {
+            name: entityName
+          },
+          create: {
+            ownerId: input.ownerId,
+            name: entityName,
+            slug: slugify(entityName) || "entity"
+          }
+        });
+
+        await tx.claimEntity.upsert({
+          where: {
+            claimId_entityId: {
+              claimId: claim.id,
+              entityId: entity.id
+            }
+          },
+          update: {},
+          create: {
+            claimId: claim.id,
+            entityId: entity.id
+          }
+        });
+      }
     }
 
     const relationCount = input.includeRelations
@@ -378,7 +715,8 @@ async function persistArtifacts(input: {
 
     return {
       version: nextVersion,
-      relationCount
+      relationCount,
+      sourceChunkCount: persistedChunks.length
     };
   });
 }
@@ -404,8 +742,14 @@ async function runTextEntryPipeline(userId: string, entryId: string, options: Pr
     };
   }
 
+  const chunks = splitIntoSourceChunks(plainText);
+
+  if (chunks.length === 0) {
+    throw new ApiError("Entry produced no retrievable source chunks", 400);
+  }
+
   const ai = getAIProvider();
-  const [summary, topics, knowledge] = await Promise.all([
+  const [summary, topics, knowledge, claims, embeddings] = await Promise.all([
     ai.summarize({
       entryId: entry.id,
       title: entry.title,
@@ -416,23 +760,36 @@ async function runTextEntryPipeline(userId: string, entryId: string, options: Pr
       title: entry.title,
       text: plainText
     }),
-    ai.extractKnowledge({
+    extractKnowledgeFromChunks({
       entryId: entry.id,
       title: entry.title,
-      text: plainText
-    })
+      chunks
+    }),
+    extractClaimsFromChunks({
+      entryId: entry.id,
+      title: entry.title,
+      chunks
+    }),
+    generateChunkEmbeddings(chunks)
   ]);
 
   const persisted = await persistArtifacts({
     entryId: entry.id,
     ownerId: userId,
+    textSourceId: latestTextSource.id,
+    sourceVersion: latestTextSource.version,
     plainText,
+    chunks,
+    chunkEmbeddings: embeddings.items,
+    embeddingModel: embeddings.model,
     summaryMarkdown: summary.summaryMarkdown,
     summaryModel: summary.model,
     topics: topics.topics,
     topicsModel: topics.model,
     knowledgeItems: knowledge.items,
     knowledgeModel: knowledge.model,
+    claims: claims.items,
+    claimsModel: claims.model,
     includeRelations: options.includeRelations ?? true,
     tagNames: entry.entryTags.map((item) => item.tag.name.toLowerCase()),
     wikiTargetIds: entry.outgoingLinks
@@ -443,9 +800,12 @@ async function runTextEntryPipeline(userId: string, entryId: string, options: Pr
   return {
     skipped: false,
     version: persisted.version,
+    sourceChunkCount: persisted.sourceChunkCount,
+    embeddedChunkCount: embeddings.items.length,
     summaryLength: summary.summaryMarkdown.length,
     topicCount: topics.topics.length,
     knowledgeCount: knowledge.items.length,
+    claimCount: claims.items.length,
     relationCount: persisted.relationCount
   };
 }

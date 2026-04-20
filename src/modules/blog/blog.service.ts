@@ -110,6 +110,36 @@ function serializeBlogPost(post: Awaited<ReturnType<typeof prisma.blogPost.findU
   };
 }
 
+function serializeListPost(post: {
+  id: string;
+  entryId: string;
+  slug: string;
+  title: string;
+  description: string | null;
+  status: string;
+  publishedContent: string;
+  publishedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  entry: {
+    logicalPath: string | null;
+  };
+}) {
+  return {
+    id: post.id,
+    entryId: post.entryId,
+    slug: post.slug,
+    title: post.title,
+    description: post.description,
+    status: post.status,
+    publishedContent: post.publishedContent,
+    publishedAt: post.publishedAt?.toISOString() ?? null,
+    createdAt: post.createdAt.toISOString(),
+    updatedAt: post.updatedAt.toISOString(),
+    logicalPath: post.entry.logicalPath
+  };
+}
+
 export const blogService = {
   async publishEntry(userId: string, input: PublishInput) {
     const normalizedSlug = normalizeSlug(input.slug);
@@ -285,13 +315,90 @@ export const blogService = {
       where: {
         status: "published"
       },
+      include: {
+        entry: {
+          select: {
+            logicalPath: true
+          }
+        }
+      },
       orderBy: {
         publishedAt: "desc"
       }
     });
 
     return {
-      items: posts.map(serializeBlogPost)
+      items: posts.map(serializeListPost)
+    };
+  },
+
+  async listLogicalPaths() {
+    const rows = await prisma.blogPost.findMany({
+      where: {
+        status: "published",
+        entry: {
+          logicalPath: {
+            not: null
+          }
+        }
+      },
+      select: {
+        entry: {
+          select: {
+            logicalPath: true
+          }
+        }
+      }
+    });
+
+    const counts = new Map<string, number>();
+
+    for (const row of rows) {
+      const logicalPath = row.entry.logicalPath?.trim();
+
+      if (!logicalPath) {
+        continue;
+      }
+
+      counts.set(logicalPath, (counts.get(logicalPath) ?? 0) + 1);
+    }
+
+    return [...counts.entries()]
+      .sort((left, right) => left[0].localeCompare(right[0]))
+      .map(([logicalPath, postCount]) => ({
+        logicalPath,
+        postCount
+      }));
+  },
+
+  async listPostsByLogicalPath(logicalPath?: string | null) {
+    const normalizedPath = logicalPath?.trim() || null;
+    const posts = await prisma.blogPost.findMany({
+      where: {
+        status: "published",
+        ...(normalizedPath
+          ? {
+              entry: {
+                logicalPath: normalizedPath
+              }
+            }
+          : {})
+      },
+      include: {
+        entry: {
+          select: {
+            logicalPath: true
+          }
+        }
+      },
+      orderBy: {
+        publishedAt: "desc"
+      }
+    });
+
+    return {
+      logicalPath: normalizedPath,
+      items: posts.map(serializeListPost)
     };
   },
 

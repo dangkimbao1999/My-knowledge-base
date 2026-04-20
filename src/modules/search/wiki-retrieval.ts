@@ -1,5 +1,9 @@
+import type { Prisma } from "@/generated/prisma";
 import type { EntryType, EntryVisibility } from "@/shared/enums";
+import { env } from "@/config/env";
+import { buildSnippet, countMatches, tokenize } from "@/lib/retrieval";
 import { prisma } from "@/lib/prisma";
+import { getAIProvider } from "@/modules/ai/ai.provider";
 
 type RetrieveWikiSourcesInput = {
   userId: string;
@@ -9,154 +13,399 @@ type RetrieveWikiSourcesInput = {
   types?: EntryType[];
 };
 
-type SearchableEntry = {
-  id: string;
-  entryType: EntryType;
-  title: string;
-  excerpt: string | null;
-  logicalPath: string | null;
-  aliases: string[];
-  visibility: EntryVisibility;
-  searchDocument: string | null;
-  updatedAt: Date;
-  textSources: Array<{
-    content: string;
-    plainText: string | null;
-    contentFormat: string;
-  }>;
-  entryTags: Array<{
-    tag: {
-      name: string;
-    };
-  }>;
-  outgoingLinks: Array<{
-    targetTitle: string;
-    linkText: string | null;
-    targetEntryId: string | null;
-  }>;
-  blogPost: {
-    slug: string;
-  } | null;
-};
-
-function tokenize(value: string) {
-  return [
-    ...new Set(
-      value
-        .toLowerCase()
-        .split(/[^\p{L}\p{N}]+/u)
-        .filter((token) => token.length > 1)
-    )
-  ];
-}
-
-function countMatches(haystack: string, needles: string[]) {
-  const normalizedHaystack = haystack.toLowerCase();
-  let matches = 0;
-
-  for (const needle of needles) {
-    if (normalizedHaystack.includes(needle)) {
-      matches += 1;
+const sourceChunkQueryArgs = {
+  include: {
+    entry: {
+      include: {
+        entryTags: {
+          include: {
+            tag: true
+          }
+        },
+        outgoingLinks: {
+          orderBy: {
+            createdAt: "asc"
+          }
+        },
+        blogPost: {
+          select: {
+            slug: true
+          }
+        }
+      }
+    },
+    knowledgeItems: {
+      where: {
+        status: "active"
+      },
+      select: {
+        id: true,
+        title: true,
+        content: true
+      },
+      take: 4
+    },
+    knowledgeClaims: {
+      where: {
+        status: "active"
+      },
+      select: {
+        id: true,
+        content: true,
+        claimType: true,
+        claimEntities: {
+          select: {
+            entity: {
+              select: {
+                name: true,
+                slug: true
+              }
+            }
+          }
+        }
+      },
+      take: 6
     }
   }
+} satisfies Prisma.SourceChunkFindManyArgs;
 
-  return matches;
+type SearchableChunk = Prisma.SourceChunkGetPayload<typeof sourceChunkQueryArgs>;
+
+function buildKnowledgeClause(needle: string): Prisma.SourceChunkWhereInput {
+  return {
+    OR: [
+      {
+        knowledgeItems: {
+          some: {
+            status: "active",
+            OR: [
+              {
+                title: {
+                  contains: needle,
+                  mode: "insensitive"
+                }
+              },
+              {
+                content: {
+                  contains: needle,
+                  mode: "insensitive"
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        knowledgeClaims: {
+          some: {
+            status: "active",
+            OR: [
+              {
+                content: {
+                  contains: needle,
+                  mode: "insensitive"
+                }
+              },
+              {
+                claimEntities: {
+                  some: {
+                    entity: {
+                      is: {
+                        OR: [
+                          {
+                            name: {
+                              contains: needle,
+                              mode: "insensitive"
+                            }
+                          },
+                          {
+                            slug: {
+                              contains: needle,
+                              mode: "insensitive"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    ]
+  };
 }
 
-function buildSnippet(text: string, tokens: string[]) {
-  const compactText = text.replace(/\s+/g, " ").trim();
-
-  if (!compactText) {
-    return "";
-  }
-
-  const lowered = compactText.toLowerCase();
-  const matchedIndex = tokens
-    .map((token) => lowered.indexOf(token))
-    .filter((index) => index >= 0)
-    .sort((left, right) => left - right)[0];
-
-  if (matchedIndex === undefined) {
-    return compactText.slice(0, 220);
-  }
-
-  const start = Math.max(0, matchedIndex - 80);
-  const end = Math.min(compactText.length, matchedIndex + 180);
-  const prefix = start > 0 ? "..." : "";
-  const suffix = end < compactText.length ? "..." : "";
-
-  return `${prefix}${compactText.slice(start, end).trim()}${suffix}`;
+function buildEntryClause(needle: string): Prisma.SourceChunkWhereInput {
+  return {
+    entry: {
+      is: {
+        OR: [
+          {
+            title: {
+              contains: needle,
+              mode: "insensitive"
+            }
+          },
+          {
+            excerpt: {
+              contains: needle,
+              mode: "insensitive"
+            }
+          },
+          {
+            logicalPath: {
+              contains: needle,
+              mode: "insensitive"
+            }
+          },
+          {
+            searchDocument: {
+              contains: needle,
+              mode: "insensitive"
+            }
+          }
+        ]
+      }
+    }
+  };
 }
 
-function scoreEntry(entry: SearchableEntry, rawQuery: string, tokens: string[]) {
-  const title = entry.title.toLowerCase();
-  const excerpt = (entry.excerpt ?? "").toLowerCase();
-  const logicalPath = (entry.logicalPath ?? "").toLowerCase();
-  const aliases = entry.aliases.join(" ").toLowerCase();
-  const tags = entry.entryTags.map((item) => item.tag.name).join(" ").toLowerCase();
-  const links = entry.outgoingLinks
+function scoreChunkLexically(chunk: SearchableChunk, rawQuery: string, tokens: string[]) {
+  const title = chunk.entry.title.toLowerCase();
+  const excerpt = (chunk.entry.excerpt ?? "").toLowerCase();
+  const logicalPath = (chunk.entry.logicalPath ?? "").toLowerCase();
+  const aliases = chunk.entry.aliases.join(" ").toLowerCase();
+  const tags = chunk.entry.entryTags.map((item) => item.tag.name).join(" ").toLowerCase();
+  const links = chunk.entry.outgoingLinks
     .map((link) => `${link.targetTitle} ${link.linkText ?? ""}`)
     .join(" ")
     .toLowerCase();
-  const plainText = (entry.textSources[0]?.plainText ?? "").toLowerCase();
+  const chunkText = chunk.content.toLowerCase();
+  const knowledgeText = chunk.knowledgeItems
+    .map((item) => `${item.title} ${item.content}`)
+    .join(" ")
+    .toLowerCase();
+  const claimText = chunk.knowledgeClaims
+    .map(
+      (item) =>
+        `${item.claimType} ${item.content} ${item.claimEntities
+          .map((claimEntity) => `${claimEntity.entity.name} ${claimEntity.entity.slug}`)
+          .join(" ")}`
+    )
+    .join(" ")
+    .toLowerCase();
   const normalizedQuery = rawQuery.toLowerCase();
 
   let score = 0;
 
   if (title.includes(normalizedQuery)) {
-    score += 36;
+    score += 26;
+  }
+
+  if (chunkText.includes(normalizedQuery)) {
+    score += 24;
+  }
+
+  if (knowledgeText.includes(normalizedQuery)) {
+    score += 18;
+  }
+
+  if (claimText.includes(normalizedQuery)) {
+    score += 20;
   }
 
   if (logicalPath.includes(normalizedQuery)) {
-    score += 16;
-  }
-
-  if (aliases.includes(normalizedQuery)) {
-    score += 14;
-  }
-
-  if (excerpt.includes(normalizedQuery)) {
     score += 12;
   }
 
-  if (tags.includes(normalizedQuery)) {
+  if (aliases.includes(normalizedQuery)) {
     score += 10;
   }
 
+  if (excerpt.includes(normalizedQuery)) {
+    score += 8;
+  }
+
   score += countMatches(title, tokens) * 8;
-  score += countMatches(logicalPath, tokens) * 6;
-  score += countMatches(aliases, tokens) * 5;
+  score += Math.min(24, countMatches(chunkText, tokens) * 3);
+  score += Math.min(18, countMatches(knowledgeText, tokens) * 3);
+  score += Math.min(20, countMatches(claimText, tokens) * 3);
+  score += countMatches(logicalPath, tokens) * 5;
+  score += countMatches(aliases, tokens) * 4;
   score += countMatches(tags, tokens) * 4;
-  score += countMatches(excerpt, tokens) * 4;
-  score += Math.min(12, countMatches(plainText, tokens) * 2);
+  score += countMatches(excerpt, tokens) * 3;
   score += Math.min(8, countMatches(links, tokens) * 2);
 
   return score;
 }
 
-function toSource(entry: SearchableEntry, score: number, queryTokens: string[]) {
-  const plainText = entry.textSources[0]?.plainText ?? "";
-  const snippet = buildSnippet(plainText || entry.excerpt || entry.title, queryTokens);
+function parseEmbedding(value: Prisma.JsonValue | null | undefined) {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  const vector = value
+    .map((item) => (typeof item === "number" ? item : Number(item)))
+    .filter((item) => Number.isFinite(item));
+
+  return vector.length > 0 ? vector : null;
+}
+
+function cosineSimilarity(left: number[], right: number[]) {
+  if (left.length === 0 || right.length === 0 || left.length !== right.length) {
+    return 0;
+  }
+
+  let dot = 0;
+  let leftMagnitude = 0;
+  let rightMagnitude = 0;
+
+  for (let index = 0; index < left.length; index += 1) {
+    const leftValue = left[index] ?? 0;
+    const rightValue = right[index] ?? 0;
+    dot += leftValue * rightValue;
+    leftMagnitude += leftValue * leftValue;
+    rightMagnitude += rightValue * rightValue;
+  }
+
+  if (leftMagnitude === 0 || rightMagnitude === 0) {
+    return 0;
+  }
+
+  return dot / (Math.sqrt(leftMagnitude) * Math.sqrt(rightMagnitude));
+}
+
+function combineScores(input: {
+  lexicalScore: number;
+  semanticScore: number;
+  evidenceCount: number;
+}) {
+  const semanticBoost = input.semanticScore > 0 ? input.semanticScore * 32 : 0;
+  const evidenceBoost = Math.min(4, input.evidenceCount);
+
+  return input.lexicalScore + semanticBoost + evidenceBoost;
+}
+
+async function buildQueryEmbedding(query: string) {
+  if (!env.OPENAI_API_KEY || !env.EMBEDDING_MODEL) {
+    return null;
+  }
+
+  try {
+    const ai = getAIProvider();
+    const result = await ai.embedTexts({
+      texts: [query]
+    });
+
+    return result.vectors[0] ?? null;
+  } catch (error) {
+    console.warn("Query embedding generation failed; using lexical retrieval only.", error);
+    return null;
+  }
+}
+
+async function retrieveLexicalChunks(
+  where: Prisma.SourceChunkWhereInput,
+  query: string,
+  tokens: string[]
+) {
+  const chunks = await prisma.sourceChunk.findMany({
+    ...sourceChunkQueryArgs,
+    where,
+    orderBy: [
+      {
+        updatedAt: "desc"
+      }
+    ],
+    take: 80
+  });
+
+  return chunks
+    .map((chunk) => ({
+      chunk,
+      lexicalScore: scoreChunkLexically(chunk, query, tokens)
+    }))
+    .filter((item) => item.lexicalScore > 0);
+}
+
+async function retrieveSemanticCandidates(entryWhere: Prisma.EntryWhereInput) {
+  const chunks = await prisma.sourceChunk.findMany({
+    ...sourceChunkQueryArgs,
+    where: {
+      entry: {
+        is: entryWhere
+      }
+    },
+    orderBy: [
+      {
+        updatedAt: "desc"
+      }
+    ],
+    take: 180
+  });
+
+  return chunks.filter((chunk) => parseEmbedding(chunk.embedding) !== null);
+}
+
+function toSource(
+  chunk: SearchableChunk,
+  input: {
+    lexicalScore: number;
+    semanticScore: number;
+    hybridScore: number;
+  },
+  queryTokens: string[]
+) {
+  const snippet = buildSnippet(chunk.content || chunk.entry.excerpt || chunk.entry.title, queryTokens);
 
   return {
-    entryId: entry.id,
-    title: entry.title,
-    entryType: entry.entryType,
-    logicalPath: entry.logicalPath,
-    visibility: entry.visibility,
-    excerpt: entry.excerpt,
+    sourceType: "source_chunk" as const,
+    retrievalMode:
+      input.semanticScore > 0 && input.lexicalScore > 0
+        ? "hybrid"
+        : input.semanticScore > 0
+          ? "semantic"
+          : "lexical",
+    sourceChunkId: chunk.id,
+    chunkIndex: chunk.chunkIndex,
+    entryId: chunk.entry.id,
+    title: chunk.entry.title,
+    entryType: chunk.entry.entryType,
+    logicalPath: chunk.entry.logicalPath,
+    visibility: chunk.entry.visibility,
+    excerpt: chunk.entry.excerpt,
     snippet,
-    plainText,
-    tags: entry.entryTags.map((item) => item.tag.name),
-    aliases: entry.aliases,
-    wikiLinks: entry.outgoingLinks.map((link) => ({
+    chunkText: chunk.content,
+    tokenEstimate: chunk.tokenEstimate,
+    tags: chunk.entry.entryTags.map((item) => item.tag.name),
+    aliases: chunk.entry.aliases,
+    wikiLinks: chunk.entry.outgoingLinks.map((link) => ({
       targetTitle: link.targetTitle,
       linkText: link.linkText,
       targetEntryId: link.targetEntryId
     })),
-    blogSlug: entry.blogPost?.slug ?? null,
-    updatedAt: entry.updatedAt.toISOString(),
-    score
+    evidence: chunk.knowledgeItems.map((item) => ({
+      id: item.id,
+      title: item.title,
+      content: item.content
+    })),
+    claims: chunk.knowledgeClaims.map((item) => ({
+      id: item.id,
+      claimType: item.claimType,
+      content: item.content,
+      entities: item.claimEntities.map((claimEntity) => ({
+        name: claimEntity.entity.name,
+        slug: claimEntity.entity.slug
+      }))
+    })),
+    blogSlug: chunk.entry.blogPost?.slug ?? null,
+    updatedAt: chunk.entry.updatedAt.toISOString(),
+    lexicalScore: input.lexicalScore,
+    semanticScore: Number(input.semanticScore.toFixed(4)),
+    score: Number(input.hybridScore.toFixed(4))
   };
 }
 
@@ -169,95 +418,114 @@ export async function retrieveWikiSources(input: RetrieveWikiSourcesInput) {
   }
 
   const tokens = tokenize(query);
-  const entries = await prisma.entry.findMany({
-    where: {
-      ownerId: input.userId,
-      ...(input.visibility ? { visibility: input.visibility } : {}),
-      ...(input.types?.length ? { entryType: { in: input.types } } : {}),
-      OR: [
-        {
-          title: {
-            contains: query,
-            mode: "insensitive"
-          }
-        },
-        {
-          excerpt: {
-            contains: query,
-            mode: "insensitive"
-          }
-        },
-        {
-          logicalPath: {
-            contains: query,
-            mode: "insensitive"
-          }
-        },
-        {
-          searchDocument: {
-            contains: query,
-            mode: "insensitive"
-          }
-        },
-        {
-          outgoingLinks: {
-            some: {
-              targetTitle: {
-                contains: query,
-                mode: "insensitive"
-              }
-            }
-          }
-        },
-        ...tokens.map((token) => ({
-          searchDocument: {
-            contains: token,
-            mode: "insensitive" as const
-          }
-        }))
-      ]
+  const searchNeedles = [...new Set([query, ...tokens])];
+  const entryWhere: Prisma.EntryWhereInput = {
+    ownerId: input.userId,
+    ...(input.visibility ? { visibility: input.visibility } : {}),
+    ...(input.types?.length ? { entryType: { in: input.types } } : {}),
+    archivedAt: null
+  };
+  const lexicalWhere: Prisma.SourceChunkWhereInput = {
+    entry: {
+      is: entryWhere
     },
-    include: {
-      textSources: {
-        where: {
-          sourceKind: "raw_text"
-        },
-        orderBy: {
-          version: "desc"
-        },
-        take: 1
-      },
-      entryTags: {
-        include: {
-          tag: true
-        }
-      },
-      outgoingLinks: {
-        orderBy: {
-          createdAt: "asc"
-        }
-      },
-      blogPost: {
-        select: {
-          slug: true
-        }
-      }
-    },
-    orderBy: [
+    OR: [
       {
-        updatedAt: "desc"
-      }
-    ],
-    take: 40
-  });
+        content: {
+          contains: query,
+          mode: "insensitive"
+        }
+      },
+      buildKnowledgeClause(query),
+      ...searchNeedles.map((needle) => ({
+        content: {
+          contains: needle,
+          mode: "insensitive" as const
+        }
+      })),
+      ...searchNeedles.map(buildKnowledgeClause),
+      ...searchNeedles.map(buildEntryClause)
+    ]
+  };
 
-  return entries
-    .map((entry) => ({
-      entry,
-      score: scoreEntry(entry, query, tokens)
-    }))
-    .filter((item) => item.score > 0)
-    .sort((left, right) => right.score - left.score)
+  const [lexicalMatches, queryEmbedding] = await Promise.all([
+    retrieveLexicalChunks(lexicalWhere, query, tokens),
+    buildQueryEmbedding(query)
+  ]);
+
+  const semanticCandidates = queryEmbedding
+    ? await retrieveSemanticCandidates(entryWhere)
+    : [];
+
+  const scored = new Map<
+    string,
+    {
+      chunk: SearchableChunk;
+      lexicalScore: number;
+      semanticScore: number;
+      hybridScore: number;
+    }
+  >();
+
+  for (const item of lexicalMatches) {
+    const hybridScore = combineScores({
+      lexicalScore: item.lexicalScore,
+      semanticScore: 0,
+      evidenceCount: item.chunk.knowledgeItems.length + item.chunk.knowledgeClaims.length
+    });
+
+    scored.set(item.chunk.id, {
+      chunk: item.chunk,
+      lexicalScore: item.lexicalScore,
+      semanticScore: 0,
+      hybridScore
+    });
+  }
+
+  if (queryEmbedding) {
+    for (const chunk of semanticCandidates) {
+      const chunkEmbedding = parseEmbedding(chunk.embedding);
+
+      if (!chunkEmbedding) {
+        continue;
+      }
+
+      const semanticScore = cosineSimilarity(queryEmbedding, chunkEmbedding);
+
+      if (semanticScore <= 0.08) {
+        continue;
+      }
+
+      const existing = scored.get(chunk.id);
+      const lexicalScore = existing?.lexicalScore ?? scoreChunkLexically(chunk, query, tokens);
+      const hybridScore = combineScores({
+        lexicalScore,
+        semanticScore,
+        evidenceCount: chunk.knowledgeItems.length + chunk.knowledgeClaims.length
+      });
+
+      scored.set(chunk.id, {
+        chunk,
+        lexicalScore,
+        semanticScore: Math.max(existing?.semanticScore ?? 0, semanticScore),
+        hybridScore: Math.max(existing?.hybridScore ?? 0, hybridScore)
+      });
+    }
+  }
+
+  return [...scored.values()]
+    .filter((item) => item.hybridScore > 0)
+    .sort((left, right) => right.hybridScore - left.hybridScore)
     .slice(0, limit)
-    .map((item) => toSource(item.entry, item.score, tokens));
+    .map((item) =>
+      toSource(
+        item.chunk,
+        {
+          lexicalScore: item.lexicalScore,
+          semanticScore: item.semanticScore,
+          hybridScore: item.hybridScore
+        },
+        tokens
+      )
+    );
 }

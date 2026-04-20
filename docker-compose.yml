@@ -38,6 +38,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OPENAI_API_BASE: ${OPENAI_API_BASE}
       LLM_MODEL: ${LLM_MODEL}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL}
       OPENAI_TEMPERATURE: ${OPENAI_TEMPERATURE}
       APP_URL: ${APP_URL}
     command: sh -c "npx prisma db push && npm run start"

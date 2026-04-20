@@ -20,6 +20,21 @@ export type KnowledgeOutput = {
   model: string;
 };
 
+export type EmbeddingOutput = {
+  vectors: number[][];
+  model: string;
+};
+
+export type ClaimOutput = {
+  items: Array<{
+    content: string;
+    claimType?: string;
+    sourceQuote?: string;
+    entities: string[];
+  }>;
+  model: string;
+};
+
 type OpenAIResponsePayload = {
   output_text?: string;
   output?: Array<{
@@ -27,6 +42,16 @@ type OpenAIResponsePayload = {
       type?: string;
       text?: string;
     }>;
+  }>;
+  error?: {
+    message?: string;
+  };
+};
+
+type OpenAIEmbeddingPayload = {
+  data?: Array<{
+    embedding?: number[];
+    index?: number;
   }>;
   error?: {
     message?: string;
@@ -117,6 +142,49 @@ async function callResponsesApi<T>(input: {
   };
 }
 
+async function callEmbeddingsApi(input: { texts: string[] }) {
+  if (!env.OPENAI_API_KEY) {
+    throw new ApiError("OPENAI_API_KEY is not configured", 500);
+  }
+
+  if (!env.EMBEDDING_MODEL) {
+    throw new ApiError("EMBEDDING_MODEL is not configured", 500);
+  }
+
+  const baseUrl = env.OPENAI_API_BASE.replace(/\/+$/, "");
+  const response = await fetch(`${baseUrl}/embeddings`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${env.OPENAI_API_KEY}`
+    },
+    body: JSON.stringify({
+      model: env.EMBEDDING_MODEL,
+      input: input.texts
+    })
+  });
+
+  const payload = (await response.json()) as OpenAIEmbeddingPayload;
+
+  if (!response.ok) {
+    throw new ApiError(payload.error?.message || "Embedding request failed", response.status);
+  }
+
+  const vectors = (payload.data ?? [])
+    .sort((left, right) => (left.index ?? 0) - (right.index ?? 0))
+    .map((item) => item.embedding ?? [])
+    .filter((embedding) => embedding.length > 0);
+
+  if (vectors.length !== input.texts.length) {
+    throw new ApiError("Embedding model returned an unexpected number of vectors", 502);
+  }
+
+  return {
+    vectors,
+    model: env.EMBEDDING_MODEL
+  };
+}
+
 function parseJson<T>(text: string) {
   return JSON.parse(stripCodeFence(text)) as T;
 }
@@ -129,6 +197,12 @@ export interface AIProvider {
     text: string;
     title: string;
   }): Promise<KnowledgeOutput>;
+  extractClaims(input: {
+    entryId: string;
+    text: string;
+    title: string;
+  }): Promise<ClaimOutput>;
+  embedTexts(input: { texts: string[] }): Promise<EmbeddingOutput>;
 }
 
 export class OpenAIWikiProvider implements AIProvider {
@@ -205,6 +279,49 @@ export class OpenAIWikiProvider implements AIProvider {
         .filter((item) => item.title && item.content),
       model: result.model
     };
+  }
+
+  async extractClaims(input: {
+    entryId: string;
+    text: string;
+    title: string;
+  }): Promise<ClaimOutput> {
+    const result = await callResponsesApi({
+      instructions:
+        "You extract grounded claims and entities from a personal knowledge-base entry chunk. " +
+        "Return valid JSON only with shape " +
+        "{\"items\":[{\"content\":\"...\",\"claimType\":\"statement|insight|reflection|preference|plan|question\",\"sourceQuote\":\"...\",\"entities\":[\"...\"]}]}. " +
+        "Return 2 to 6 concise claims. Keep claims faithful to the text and entities short.",
+      prompt:
+        `Title: ${input.title}\nEntry ID: ${input.entryId}\n\n` +
+        `Source text:\n${input.text.slice(0, 9000)}`,
+      temperature: 0.1,
+      parse: (text) =>
+        parseJson<{
+          items?: Array<{
+            content?: string;
+            claimType?: string;
+            sourceQuote?: string;
+            entities?: string[];
+          }>;
+        }>(text)
+    });
+
+    return {
+      items: (result.data.items ?? [])
+        .map((item) => ({
+          content: item.content?.trim() ?? "",
+          claimType: item.claimType?.trim() || undefined,
+          sourceQuote: item.sourceQuote?.trim() || undefined,
+          entities: [...new Set((item.entities ?? []).map((entity) => entity.trim()).filter(Boolean))]
+        }))
+        .filter((item) => item.content),
+      model: result.model
+    };
+  }
+
+  async embedTexts(input: { texts: string[] }): Promise<EmbeddingOutput> {
+    return callEmbeddingsApi(input);
   }
 }
 
