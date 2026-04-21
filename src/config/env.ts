@@ -12,6 +12,7 @@ const envSchema = z.object({
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_API_BASE: z.string().url().default("https://api.openai.com/v1"),
   LLM_MODEL: z.string().default("gpt-5.4-mini"),
+  EMBEDDING_MODEL: z.string().optional(),
   OPENAI_TEMPERATURE: z.coerce.number().min(0).max(2).default(0.2),
   APP_URL: z.string().url().default("http://localhost:3000")
 });
@@ -28,6 +29,7 @@ export const env = envSchema.parse({
   OPENAI_API_KEY: process.env.OPENAI_API_KEY,
   OPENAI_API_BASE: process.env.OPENAI_API_BASE,
   LLM_MODEL: process.env.LLM_MODEL,
+  EMBEDDING_MODEL: process.env.EMBEDDING_MODEL,
   OPENAI_TEMPERATURE: process.env.OPENAI_TEMPERATURE,
   APP_URL: process.env.APP_URL
 });

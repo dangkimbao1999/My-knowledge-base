@@ -112,3 +112,8 @@ export const queryWikiSchema = z.object({
   query: z.string().min(1).max(400),
   limit: z.number().int().min(1).max(10).default(6).optional()
 });
+
+export const publicBlogChatSchema = z.object({
+  question: z.string().min(1).max(400),
+  limit: z.number().int().min(1).max(8).default(5).optional()
+});

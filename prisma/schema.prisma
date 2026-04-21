@@ -67,6 +67,15 @@ enum AIArtifactStatus {
   failed
 }
 
+enum ClaimType {
+  statement
+  insight
+  reflection
+  preference
+  plan
+  question
+}
+
 enum RelationType {
   related
   references
@@ -110,6 +119,8 @@ model User {
   files          EntryFileSource[]
   notes          EntryNote[]
   tags           Tag[]
+  entities       Entity[]
+  knowledgeClaims KnowledgeClaim[]
   processingJobs ProcessingJob[]
 }
 
@@ -138,10 +149,12 @@ model Entry {
   owner                  User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   textSources            EntryTextSource[]
   fileSources            EntryFileSource[]
+  sourceChunks           SourceChunk[]
   notes                  EntryNote[]
   aiSummaries            AISummary[]
   aiTopics               AITopic[]
   aiKnowledgeItems       AIKnowledgeItem[]
+  knowledgeClaims        KnowledgeClaim[]
   outgoingLinks          EntryLink[]       @relation("SourceEntryLinks")
   incomingLinks          EntryLink[]       @relation("TargetEntryLinks")
   outgoingRelations      EntryRelation[]   @relation("SourceEntryRelations")
@@ -168,8 +181,36 @@ model EntryTextSource {
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
   entry              Entry          @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  sourceChunks       SourceChunk[]
 
   @@index([entryId, sourceKind, version(sort: Desc)])
+}
+
+model SourceChunk {
+  id                 String           @id @default(uuid())
+  entryId            String
+  textSourceId       String
+  version            Int              @default(1)
+  chunkIndex         Int
+  startOffset        Int
+  endOffset          Int
+  content            String
+  tokenEstimate      Int?
+  searchVector       Unsupported("tsvector")?
+  embedding          Json?
+  embeddingModel     String?
+  embeddingUpdatedAt DateTime?
+  sourceSnapshotHash String
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  entry              Entry            @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  textSource         EntryTextSource  @relation(fields: [textSourceId], references: [id], onDelete: Cascade)
+  knowledgeItems     AIKnowledgeItem[]
+  knowledgeClaims    KnowledgeClaim[]
+
+  @@unique([textSourceId, version, chunkIndex])
+  @@index([entryId, version, chunkIndex])
+  @@index([textSourceId, version, chunkIndex])
 }
 
 model EntryLink {
@@ -279,8 +320,63 @@ model AIKnowledgeItem {
   createdAt           DateTime         @default(now())
   updatedAt           DateTime         @updatedAt
   entry               Entry            @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  sourceChunk         SourceChunk?     @relation(fields: [sourceChunkId], references: [id], onDelete: SetNull)
 
   @@index([entryId, version(sort: Desc)])
+  @@index([sourceChunkId])
+}
+
+model KnowledgeClaim {
+  id                 String           @id @default(uuid())
+  ownerId            String
+  entryId            String
+  version            Int              @default(1)
+  status             AIArtifactStatus @default(active)
+  sourceChunkId      String?
+  claimType          ClaimType        @default(statement)
+  content            String
+  sourceReferences   Json?
+  sourceSnapshotHash String
+  modelName          String
+  promptVersion      String
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  owner              User             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  entry              Entry            @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  sourceChunk        SourceChunk?     @relation(fields: [sourceChunkId], references: [id], onDelete: SetNull)
+  claimEntities      ClaimEntity[]
+
+  @@index([ownerId, createdAt(sort: Desc)])
+  @@index([entryId, version(sort: Desc)])
+  @@index([sourceChunkId])
+  @@index([claimType, createdAt(sort: Desc)])
+}
+
+model Entity {
+  id            String        @id @default(uuid())
+  ownerId       String
+  name          String
+  slug          String
+  entityType    String?
+  aliases       String[]      @default([])
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  owner         User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  claimEntities ClaimEntity[]
+
+  @@unique([ownerId, slug])
+  @@index([ownerId, name])
+}
+
+model ClaimEntity {
+  claimId      String
+  entityId     String
+  createdAt    DateTime       @default(now())
+  claim        KnowledgeClaim @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  entity       Entity         @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@id([claimId, entityId])
+  @@index([entityId])
 }
 
 model EntryRelation {

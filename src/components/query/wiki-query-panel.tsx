@@ -4,6 +4,9 @@ import { useState } from "react";
 import { renderMarkdownPreview } from "@/lib/markdown-preview";
 
 type WikiSource = {
+  sourceType: "source_chunk";
+  sourceChunkId: string;
+  chunkIndex: number;
   entryId: string;
   title: string;
   entryType: string;
@@ -11,8 +14,14 @@ type WikiSource = {
   visibility: string;
   excerpt: string | null;
   snippet: string;
+  chunkText: string;
   tags: string[];
   aliases: string[];
+  evidence: Array<{
+    id: string;
+    title: string;
+    content: string;
+  }>;
   blogSlug: string | null;
   updatedAt: string;
   score: number;
@@ -83,8 +92,8 @@ export function WikiQueryPanel() {
       <p className="panel-kicker">Query Your Wiki</p>
       <h2 className="panel-title">Ask across your Markdown knowledge base</h2>
       <p className="muted-copy" style={{ marginTop: 12 }}>
-        This MVP retrieves likely entries from PostgreSQL first, then asks the model
-        to answer only from those sources with citations.
+        This now uses hybrid retrieval: lexical chunk search first, semantic reranking when embeddings
+        are available, then grounded answering with citations.
       </p>
 
       <label className="label" style={{ marginTop: 18 }}>
@@ -143,15 +152,25 @@ export function WikiQueryPanel() {
           <aside className="query-sources">
             <div className="entry-list">
               {answer.sources.map((source, index) => (
-                <article className="entry-card" key={source.entryId}>
+                <article className="entry-card" key={source.sourceChunkId}>
                   <div className="meta-row">
                     <span>S{index + 1}</span>
                     <span>{source.entryType}</span>
+                    <span>chunk {source.chunkIndex + 1}</span>
                     {source.logicalPath ? <span>{source.logicalPath}</span> : null}
                   </div>
                   <h3>{source.title}</h3>
                   {source.excerpt ? <p className="muted-copy">{source.excerpt}</p> : null}
                   <p className="muted-copy">{source.snippet}</p>
+                  {source.evidence.length > 0 ? (
+                    <div className="chip-row">
+                      {source.evidence.slice(0, 3).map((item) => (
+                        <span className="chip" key={item.id}>
+                          {item.title}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                   {source.tags.length > 0 ? (
                     <div className="chip-row">
                       {source.tags.map((tag) => (

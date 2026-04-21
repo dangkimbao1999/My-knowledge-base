@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { renderMarkdownPreview } from "@/lib/markdown-preview";
 
 type EntryCard = {
@@ -9,8 +9,10 @@ type EntryCard = {
   entryType: string;
   excerpt: string | null;
   logicalPath: string | null;
-  tags: string[];
   aliases: string[];
+  tags: string[];
+  content: string | null;
+  contentFormat: string | null;
   wikiLinks: Array<{
     targetTitle: string;
     targetEntryId: string | null;
@@ -29,152 +31,376 @@ type EntryCard = {
   updatedAt: string;
 };
 
-type EntryEditorProps = {
-  initialEntries: EntryCard[];
+type NavigationNode = {
+  id: string;
+  name: string;
+  path: string | null;
+  children: NavigationNode[];
+  entries: Array<{
+    id: string;
+    title: string;
+    logicalPath: string | null;
+    entryType: string;
+    visibility: string;
+    updatedAt: string;
+  }>;
 };
 
-const initialMarkdown = `# First thought
+type EntryEditorProps = {
+  initialEntries: EntryCard[];
+  initialNavigation: NavigationNode;
+};
 
-**Summary**: One sentence that tells future-you why this matters.
+type DraftState = {
+  title: string;
+  excerpt: string;
+  logicalPath: string;
+  aliases: string;
+  tags: string;
+  content: string;
+};
 
-## Notes
+type PublishDraftState = {
+  slug: string;
+  title: string;
+  description: string;
+  publishMode: string;
+};
 
-- Capture the idea cleanly.
-- Link related material like [[Deep Work]].
-- Keep each entry focused on one theme.
+const initialMarkdown = `# Untitled note
 
-## Related
+Write in Markdown here.
 
-- [[Atomic Habits]]
+- Capture one idea at a time
+- Link related entries like [[Deep Work]]
 `;
 
-export function EntryEditor({ initialEntries }: EntryEditorProps) {
-  const [title, setTitle] = useState("");
-  const [excerpt, setExcerpt] = useState("");
-  const [logicalPath, setLogicalPath] = useState("inbox");
-  const [aliases, setAliases] = useState("");
-  const [tags, setTags] = useState("");
-  const [content, setContent] = useState(initialMarkdown);
+function createEmptyDraft(path = "inbox"): DraftState {
+  return {
+    title: "",
+    excerpt: "",
+    logicalPath: path,
+    aliases: "",
+    tags: "",
+    content: initialMarkdown
+  };
+}
+
+function toDraft(entry: EntryCard): DraftState {
+  return {
+    title: entry.title,
+    excerpt: entry.excerpt ?? "",
+    logicalPath: entry.logicalPath ?? "inbox",
+    aliases: entry.aliases.join(", "),
+    tags: entry.tags.join(", "),
+    content: entry.content ?? initialMarkdown
+  };
+}
+
+function collectPaths(node: NavigationNode, paths = new Set<string>()) {
+  if (node.path) {
+    paths.add(node.path);
+  }
+
+  for (const child of node.children) {
+    collectPaths(child, paths);
+  }
+
+  return paths;
+}
+
+function createSlug(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function toPublishDraft(entry: EntryCard | null): PublishDraftState {
+  if (!entry) {
+    return {
+      slug: "",
+      title: "",
+      description: "",
+      publishMode: "notes_only"
+    };
+  }
+
+  return {
+    slug: entry.blogPost?.slug ?? createSlug(entry.title),
+    title: entry.blogPost?.title ?? entry.title,
+    description: entry.blogPost?.description ?? entry.excerpt ?? "",
+    publishMode: entry.publishMode === "none" ? "notes_only" : entry.publishMode
+  };
+}
+
+export function EntryEditor({ initialEntries, initialNavigation }: EntryEditorProps) {
   const [entries, setEntries] = useState(initialEntries);
-  const [publishDrafts, setPublishDrafts] = useState<Record<string, {
-    slug: string;
-    title: string;
-    description: string;
-    publishMode: string;
-  }>>({});
+  const [navigation, setNavigation] = useState(initialNavigation);
+  const [selectedEntryId, setSelectedEntryId] = useState<string | null>(initialEntries[0]?.id ?? null);
+  const [draft, setDraft] = useState<DraftState>(
+    initialEntries[0] ? toDraft(initialEntries[0]) : createEmptyDraft()
+  );
+  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(
+    collectPaths(initialNavigation)
+  );
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [publishingEntryId, setPublishingEntryId] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [publishDraft, setPublishDraft] = useState<PublishDraftState>(
+    toPublishDraft(initialEntries[0] ?? null)
+  );
 
-  function createSlug(value: string) {
-    return value
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "");
-  }
+  const selectedEntry = useMemo(
+    () => entries.find((entry) => entry.id === selectedEntryId) ?? null,
+    [entries, selectedEntryId]
+  );
 
-  function getPublishDraft(entry: EntryCard) {
-    return (
-      publishDrafts[entry.id] ?? {
-        slug: entry.blogPost?.slug ?? createSlug(entry.title),
-        title: entry.blogPost?.title ?? entry.title,
-        description: entry.blogPost?.description ?? entry.excerpt ?? "",
-        publishMode: entry.publishMode === "none" ? "notes_only" : entry.publishMode
+  useEffect(() => {
+    setPublishDraft(toPublishDraft(selectedEntry));
+  }, [selectedEntry]);
+
+  async function refreshNavigation() {
+    const response = await fetch("/api/entries/navigation");
+    const payload = (await response.json()) as {
+      success: boolean;
+      data?: {
+        root: NavigationNode;
+      };
+      error?: { message?: string };
+    };
+
+    if (!response.ok || !payload.success || !payload.data) {
+      throw new Error(payload.error?.message || "Unable to refresh navigation.");
+    }
+
+    const root = payload.data.root;
+
+    setNavigation(root);
+    setExpandedPaths((current) => {
+      const next = new Set(current);
+
+      for (const path of collectPaths(root)) {
+        next.add(path);
       }
-    );
-  }
 
-  function updatePublishDraft(
-    entryId: string,
-    patch: Partial<{
-      slug: string;
-      title: string;
-      description: string;
-      publishMode: string;
-    }>
-  ) {
-    setPublishDrafts((current) => {
-      const previous = current[entryId] ?? {
-        slug: "",
-        title: "",
-        description: "",
-        publishMode: "notes_only"
-      };
-
-      return {
-        ...current,
-        [entryId]: {
-          ...previous,
-          ...patch
-        }
-      };
+      return next;
     });
   }
 
-  async function handleCreateEntry() {
+  function updateDraft<K extends keyof DraftState>(key: K, value: DraftState[K]) {
+    setDraft((current) => ({
+      ...current,
+      [key]: value
+    }));
+  }
+
+  function updatePublishDraft<K extends keyof PublishDraftState>(
+    key: K,
+    value: PublishDraftState[K]
+  ) {
+    setPublishDraft((current) => ({
+      ...current,
+      [key]: value
+    }));
+  }
+
+  function handleSelectEntry(entryId: string) {
+    const entry = entries.find((item) => item.id === entryId);
+
+    if (!entry) {
+      return;
+    }
+
+    setSelectedEntryId(entry.id);
+    setDraft(toDraft(entry));
     setError("");
     setStatus("");
-    setIsSubmitting(true);
+  }
 
-    try {
-      const response = await fetch("/api/entries", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          title,
-          content,
-          contentFormat: "markdown",
-          excerpt: excerpt || undefined,
-          logicalPath: logicalPath || undefined,
-          aliases: aliases
-            .split(",")
-            .map((item) => item.trim())
-            .filter(Boolean),
-          tags: tags
-            .split(",")
-            .map((item) => item.trim())
-            .filter(Boolean),
-          visibility: "private"
-        })
-      });
+  function handleNewEntry(path?: string | null) {
+    setSelectedEntryId(null);
+    setDraft(createEmptyDraft(path ?? selectedEntry?.logicalPath ?? "inbox"));
+    setError("");
+    setStatus("Ready for a new entry.");
+  }
 
-      const payload = (await response.json()) as {
-        success: boolean;
-        data?: EntryCard;
-        error?: { message?: string };
-      };
+  function toggleFolder(path: string) {
+    setExpandedPaths((current) => {
+      const next = new Set(current);
 
-      if (!response.ok || !payload.success || !payload.data) {
-        throw new Error(payload.error?.message || "Unable to create entry.");
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
       }
 
-      setEntries((current) => [payload.data as EntryCard, ...current]);
-      setStatus("Entry saved. The Markdown source and extracted wiki links were stored.");
-      setTitle("");
-      setExcerpt("");
-      setAliases("");
-      setTags("");
-      setContent(initialMarkdown);
-    } catch (submissionError) {
-      setError(
-        submissionError instanceof Error
-          ? submissionError.message
-          : "Unable to create entry."
-      );
+      return next;
+    });
+  }
+
+  async function handleSave() {
+    setIsSaving(true);
+    setError("");
+    setStatus("");
+
+    const tags = draft.tags
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+    const aliases = draft.aliases
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    try {
+      if (selectedEntryId) {
+        const updateResponse = await fetch(`/api/entries/${selectedEntryId}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            title: draft.title,
+            excerpt: draft.excerpt || null,
+            logicalPath: draft.logicalPath || null,
+            aliases,
+            content: draft.content,
+            contentFormat: "markdown"
+          })
+        });
+
+        const updatePayload = (await updateResponse.json()) as {
+          success: boolean;
+          data?: EntryCard;
+          error?: { message?: string };
+        };
+
+        if (!updateResponse.ok || !updatePayload.success || !updatePayload.data) {
+          throw new Error(updatePayload.error?.message || "Unable to update entry.");
+        }
+
+        const tagResponse = await fetch(`/api/entries/${selectedEntryId}/settings/tags`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            tags
+          })
+        });
+
+        const tagPayload = (await tagResponse.json()) as {
+          success: boolean;
+          data?: EntryCard;
+          error?: { message?: string };
+        };
+
+        if (!tagResponse.ok || !tagPayload.success || !tagPayload.data) {
+          throw new Error(tagPayload.error?.message || "Unable to update tags.");
+        }
+
+        setEntries((current) =>
+          current.map((entry) => (entry.id === selectedEntryId ? (tagPayload.data as EntryCard) : entry))
+        );
+        setDraft(toDraft(tagPayload.data));
+        setStatus("Entry updated.");
+      } else {
+        const createResponse = await fetch("/api/entries", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            title: draft.title,
+            content: draft.content,
+            contentFormat: "markdown",
+            excerpt: draft.excerpt || undefined,
+            logicalPath: draft.logicalPath || undefined,
+            aliases,
+            tags,
+            visibility: "private"
+          })
+        });
+
+        const createPayload = (await createResponse.json()) as {
+          success: boolean;
+          data?: EntryCard;
+          error?: { message?: string };
+        };
+
+        if (!createResponse.ok || !createPayload.success || !createPayload.data) {
+          throw new Error(createPayload.error?.message || "Unable to create entry.");
+        }
+
+        const createdEntry = createPayload.data as EntryCard;
+        setEntries((current) => [createdEntry, ...current]);
+        setSelectedEntryId(createdEntry.id);
+        setDraft(toDraft(createdEntry));
+        setStatus("Entry created.");
+      }
+
+      await refreshNavigation();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Unable to save entry.");
     } finally {
-      setIsSubmitting(false);
+      setIsSaving(false);
     }
   }
 
-  async function handlePublish(entry: EntryCard) {
-    const draft = getPublishDraft(entry);
+  async function handleDelete() {
+    if (!selectedEntryId) {
+      return;
+    }
+
+    setIsDeleting(true);
     setError("");
     setStatus("");
-    setPublishingEntryId(entry.id);
+
+    try {
+      const response = await fetch(`/api/entries/${selectedEntryId}`, {
+        method: "DELETE"
+      });
+      const payload = (await response.json()) as {
+        success: boolean;
+        error?: { message?: string };
+      };
+
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error?.message || "Unable to delete entry.");
+      }
+
+      const remainingEntries = entries.filter((entry) => entry.id !== selectedEntryId);
+      setEntries(remainingEntries);
+
+      if (remainingEntries[0]) {
+        setSelectedEntryId(remainingEntries[0].id);
+        setDraft(toDraft(remainingEntries[0]));
+      } else {
+        setSelectedEntryId(null);
+        setDraft(createEmptyDraft());
+      }
+
+      await refreshNavigation();
+      setStatus("Entry deleted.");
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "Unable to delete entry.");
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
+  async function handlePublish() {
+    if (!selectedEntry) {
+      return;
+    }
+
+    setIsPublishing(true);
+    setError("");
+    setStatus("");
 
     try {
       const response = await fetch("/api/blog/publish", {
@@ -183,11 +409,11 @@ export function EntryEditor({ initialEntries }: EntryEditorProps) {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          entryId: entry.id,
-          slug: draft.slug,
-          title: draft.title || undefined,
-          description: draft.description || undefined,
-          publishMode: draft.publishMode
+          entryId: selectedEntry.id,
+          slug: publishDraft.slug,
+          title: publishDraft.title || undefined,
+          description: publishDraft.description || undefined,
+          publishMode: publishDraft.publishMode
         })
       });
 
@@ -209,12 +435,12 @@ export function EntryEditor({ initialEntries }: EntryEditorProps) {
       }
 
       setEntries((current) =>
-        current.map((item) =>
-          item.id === entry.id
+        current.map((entry) =>
+          entry.id === selectedEntry.id
             ? {
-                ...item,
+                ...entry,
                 visibility: "public",
-                publishMode: draft.publishMode,
+                publishMode: publishDraft.publishMode,
                 blogPost: {
                   id: payload.data!.id,
                   slug: payload.data!.slug,
@@ -224,25 +450,25 @@ export function EntryEditor({ initialEntries }: EntryEditorProps) {
                   publishedAt: payload.data!.publishedAt
                 }
               }
-            : item
+            : entry
         )
       );
-      setStatus("Entry published to the public blog.");
+      setStatus("Entry published to blog.");
     } catch (publishError) {
-      setError(
-        publishError instanceof Error
-          ? publishError.message
-          : "Unable to publish entry."
-      );
+      setError(publishError instanceof Error ? publishError.message : "Unable to publish entry.");
     } finally {
-      setPublishingEntryId(null);
+      setIsPublishing(false);
     }
   }
 
-  async function handleUnpublish(entry: EntryCard) {
+  async function handleUnpublish() {
+    if (!selectedEntry) {
+      return;
+    }
+
+    setIsPublishing(true);
     setError("");
     setStatus("");
-    setPublishingEntryId(entry.id);
 
     try {
       const response = await fetch("/api/blog/unpublish", {
@@ -251,7 +477,7 @@ export function EntryEditor({ initialEntries }: EntryEditorProps) {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          entryId: entry.id
+          entryId: selectedEntry.id
         })
       });
 
@@ -265,50 +491,140 @@ export function EntryEditor({ initialEntries }: EntryEditorProps) {
       }
 
       setEntries((current) =>
-        current.map((item) =>
-          item.id === entry.id && item.blogPost
+        current.map((entry) =>
+          entry.id === selectedEntry.id && entry.blogPost
             ? {
-                ...item,
+                ...entry,
                 blogPost: {
-                  ...item.blogPost,
+                  ...entry.blogPost,
                   status: "unpublished",
                   publishedAt: null
                 }
               }
-            : item
+            : entry
         )
       );
-      setStatus("Entry unpublished from the public blog.");
+      setStatus("Entry unpublished from blog.");
     } catch (publishError) {
-      setError(
-        publishError instanceof Error
-          ? publishError.message
-          : "Unable to unpublish entry."
-      );
+      setError(publishError instanceof Error ? publishError.message : "Unable to unpublish entry.");
     } finally {
-      setPublishingEntryId(null);
+      setIsPublishing(false);
     }
   }
 
-  return (
-    <div className="editor-layout">
-      <section className="panel editor-panel">
-        <p className="panel-kicker">Creation Screen</p>
-        <h2 className="panel-title">Write directly in Markdown</h2>
-        <p className="muted-copy">
-          This writes a text entry through the existing backend API, stores the raw
-          Markdown, derives plain text, extracts any wiki links, and infers the
-          entry type from the logical path.
-        </p>
+  function renderNode(node: NavigationNode, depth = 0) {
+    const isExpanded = !node.path || expandedPaths.has(node.path);
 
-        <div className="editor-grid" style={{ marginTop: 20 }}>
+    return (
+      <div className="cms-tree-node" key={node.id}>
+        {node.path ? (
+          <button
+            className="cms-tree-folder"
+            style={{ paddingLeft: 14 + depth * 14 }}
+            type="button"
+            onClick={() => toggleFolder(node.path!)}
+          >
+            <span>{isExpanded ? "v" : ">"}</span>
+            <span>{node.name}</span>
+          </button>
+        ) : null}
+
+        {isExpanded ? (
+          <div className="cms-tree-children">
+            {node.children.map((child) => renderNode(child, depth + 1))}
+            {node.entries.map((entry) => (
+              <button
+                className={`cms-tree-entry ${selectedEntryId === entry.id ? "active" : ""}`}
+                key={entry.id}
+                style={{ paddingLeft: (node.path ? depth + 1 : depth) * 14 + 28 }}
+                type="button"
+                onClick={() => handleSelectEntry(entry.id)}
+              >
+                <span className="cms-tree-entry-title">{entry.title}</span>
+                <span className="cms-tree-entry-meta">{entry.entryType}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="cms-layout">
+      <aside className="panel cms-sidebar">
+        <div className="cms-sidebar-header">
+          <div>
+            <p className="panel-kicker">Navigation</p>
+            <h2 className="panel-title">By logical path</h2>
+          </div>
+        </div>
+
+        <div className="cms-sidebar-tree">
+          {navigation.children.length === 0 && navigation.entries.length === 0 ? (
+            <div className="empty-state">No entries yet. Create your first page on the right.</div>
+          ) : (
+            <>
+              {navigation.children.map((node) => renderNode(node))}
+              {navigation.entries.map((entry) => (
+                <button
+                  className={`cms-tree-entry ${selectedEntryId === entry.id ? "active" : ""}`}
+                  key={entry.id}
+                  type="button"
+                  onClick={() => handleSelectEntry(entry.id)}
+                >
+                  <span className="cms-tree-entry-title">{entry.title}</span>
+                  <span className="cms-tree-entry-meta">{entry.entryType}</span>
+                </button>
+              ))}
+            </>
+          )}
+        </div>
+      </aside>
+
+      <section className="panel cms-editor">
+        <div className="cms-editor-header">
+          <div>
+            <p className="panel-kicker">{selectedEntry ? "Selected Entry" : "New Entry"}</p>
+            <h2 className="panel-title">
+              {selectedEntry ? selectedEntry.title : "Untitled"}
+            </h2>
+            <p className="muted-copy">
+              {selectedEntry
+                ? `Last updated ${new Date(selectedEntry.updatedAt).toLocaleString()}`
+                : "Create directly from the writing space, similar to a CMS page editor."}
+            </p>
+          </div>
+
+          <div className="button-row">
+            <button
+              className="button"
+              type="button"
+              onClick={() => handleNewEntry(selectedEntry?.logicalPath)}
+            >
+              New entry
+            </button>
+            {selectedEntry ? (
+              <button
+                className="button-danger"
+                type="button"
+                onClick={handleDelete}
+                disabled={isDeleting}
+              >
+                {isDeleting ? "Deleting..." : "Delete"}
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="cms-properties">
           <label className="label">
             Title
             <input
-              className="input"
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              placeholder="Why deep work still matters"
+              className="input cms-title-input"
+              value={draft.title}
+              onChange={(event) => updateDraft("title", event.target.value)}
+              placeholder="A concise page title"
             />
           </label>
 
@@ -316,9 +632,19 @@ export function EntryEditor({ initialEntries }: EntryEditorProps) {
             Logical path
             <input
               className="input"
-              value={logicalPath}
-              onChange={(event) => setLogicalPath(event.target.value)}
-              placeholder="ideas/attention, books/deep-work, people/karpathy"
+              value={draft.logicalPath}
+              onChange={(event) => updateDraft("logicalPath", event.target.value)}
+              placeholder="ideas/product/knowledge"
+            />
+          </label>
+
+          <label className="label">
+            Tags
+            <input
+              className="input"
+              value={draft.tags}
+              onChange={(event) => updateDraft("tags", event.target.value)}
+              placeholder="ai, architecture, product"
             />
           </label>
 
@@ -326,216 +652,157 @@ export function EntryEditor({ initialEntries }: EntryEditorProps) {
             Aliases
             <input
               className="input"
-              value={aliases}
-              onChange={(event) => setAliases(event.target.value)}
-              placeholder="deep work notes, focus memo"
+              value={draft.aliases}
+              onChange={(event) => updateDraft("aliases", event.target.value)}
+              placeholder="alternative names, comma separated"
             />
           </label>
 
-          <div className="empty-state" style={{ gridColumn: "1 / -1", padding: 16 }}>
-            `entryType` is inferred from the first segment of `logicalPath`.
-            Examples: `ideas/...` -&gt; `idea`, `books/...` -&gt; `book_note`,
-            `projects/...` -&gt; `project_note`, `people/...` -&gt; `person_note`.
-          </div>
-
-          <label className="label full">
+          <label className="label cms-property-wide">
             Excerpt
             <input
               className="input"
-              value={excerpt}
-              onChange={(event) => setExcerpt(event.target.value)}
-              placeholder="Short summary for quick scanning"
-            />
-          </label>
-
-          <label className="label full">
-            Tags
-            <input
-              className="input"
-              value={tags}
-              onChange={(event) => setTags(event.target.value)}
-              placeholder="reading, writing, focus"
-            />
-          </label>
-
-          <label className="label full">
-            Markdown editor
-            <textarea
-              className="textarea editor-textarea"
-              value={content}
-              onChange={(event) => setContent(event.target.value)}
+              value={draft.excerpt}
+              onChange={(event) => updateDraft("excerpt", event.target.value)}
+              placeholder="Short summary for previews and blog projection"
             />
           </label>
         </div>
 
-        <div className="button-row" style={{ marginTop: 18 }}>
-          <button
-            className="button"
-            type="button"
-            onClick={handleCreateEntry}
-            disabled={isSubmitting || !title.trim() || !content.trim()}
-          >
-            {isSubmitting ? "Saving..." : "Save entry"}
-          </button>
-          <button
-            className="button-secondary"
-            type="button"
-            onClick={() => setContent(initialMarkdown)}
-            disabled={isSubmitting}
-          >
-            Reset sample
-          </button>
+        <div className="cms-editor-body">
+          <textarea
+            className="textarea editor-textarea cms-writing-area"
+            value={draft.content}
+            onChange={(event) => updateDraft("content", event.target.value)}
+            placeholder="Write your entry in Markdown..."
+          />
+
+          <aside className="cms-preview-panel">
+            <p className="panel-kicker">Preview</p>
+            <div
+              className="preview cms-preview"
+              dangerouslySetInnerHTML={{ __html: renderMarkdownPreview(draft.content) }}
+            />
+
+            <section className="cms-publish-panel">
+              <p className="panel-kicker">Public Projection</p>
+              {selectedEntry ? (
+                <>
+                  <label className="label">
+                    Blog slug
+                    <input
+                      className="input"
+                      value={publishDraft.slug}
+                      onChange={(event) => updatePublishDraft("slug", event.target.value)}
+                      placeholder="my-public-entry"
+                    />
+                  </label>
+
+                  <label className="label">
+                    Public title
+                    <input
+                      className="input"
+                      value={publishDraft.title}
+                      onChange={(event) => updatePublishDraft("title", event.target.value)}
+                      placeholder="Public blog title"
+                    />
+                  </label>
+
+                  <label className="label">
+                    Public description
+                    <input
+                      className="input"
+                      value={publishDraft.description}
+                      onChange={(event) => updatePublishDraft("description", event.target.value)}
+                      placeholder="Short blog description"
+                    />
+                  </label>
+
+                  <label className="label">
+                    Publish mode
+                    <select
+                      className="select"
+                      value={publishDraft.publishMode}
+                      onChange={(event) => updatePublishDraft("publishMode", event.target.value)}
+                    >
+                      <option value="notes_only">Notes only</option>
+                      <option value="summary_only">Summary only</option>
+                      <option value="summary_and_notes">Summary and notes</option>
+                    </select>
+                  </label>
+
+                  <div className="cms-publish-meta">
+                    <span>Status: {selectedEntry.blogPost?.status ?? "draft"}</span>
+                    <span>Visibility: {selectedEntry.visibility}</span>
+                  </div>
+
+                  <div className="button-row">
+                    <button
+                      className="button"
+                      type="button"
+                      onClick={handlePublish}
+                      disabled={isPublishing || !publishDraft.slug.trim()}
+                    >
+                      {isPublishing ? "Publishing..." : "Publish to blog"}
+                    </button>
+
+                    {selectedEntry.blogPost?.status === "published" ? (
+                      <>
+                        <a
+                          className="button-secondary"
+                          href={`/blog/${selectedEntry.blogPost.slug}`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          View public post
+                        </a>
+                        <button
+                          className="button-danger"
+                          type="button"
+                          onClick={handleUnpublish}
+                          disabled={isPublishing}
+                        >
+                          Unpublish
+                        </button>
+                      </>
+                    ) : null}
+                  </div>
+                </>
+              ) : (
+                <div className="empty-state">
+                  Save the entry first, then publish it from this panel.
+                </div>
+              )}
+            </section>
+          </aside>
         </div>
 
-        <div className={`status ${error ? "error" : status ? "success" : ""}`} style={{ marginTop: 12 }}>
-          {error || status}
+        <div className="cms-footer">
+          <div className={`status ${error ? "error" : status ? "success" : ""}`}>
+            {error || status}
+          </div>
+          <div className="button-row">
+            <button
+              className="button"
+              type="button"
+              onClick={handleSave}
+              disabled={isSaving || !draft.title.trim() || !draft.content.trim()}
+            >
+              {isSaving ? "Saving..." : selectedEntry ? "Save changes" : "Create entry"}
+            </button>
+            <button
+              className="button-secondary"
+              type="button"
+              onClick={() =>
+                selectedEntry ? setDraft(toDraft(selectedEntry)) : setDraft(createEmptyDraft(draft.logicalPath))
+              }
+              disabled={isSaving}
+            >
+              Reset
+            </button>
+          </div>
         </div>
       </section>
-
-      <aside className="write-shell" style={{ gap: 20 }}>
-        <section className="panel sidebar-panel">
-          <p className="panel-kicker">Live Preview</p>
-          <h2 className="panel-title">What this entry looks like</h2>
-          <div
-            className="preview"
-            style={{ marginTop: 18 }}
-            dangerouslySetInnerHTML={{ __html: renderMarkdownPreview(content) }}
-          />
-        </section>
-
-        <section className="panel sidebar-panel">
-          <p className="panel-kicker">Recent Entries</p>
-          <h2 className="panel-title">Stored through the API</h2>
-          <div className="entry-list" style={{ marginTop: 18 }}>
-            {entries.length === 0 ? (
-              <div className="empty-state">
-                No entries yet. Save your first Markdown note to see it here.
-              </div>
-            ) : (
-              entries.map((entry) => (
-                <article className="entry-card" key={entry.id}>
-                  <h3>{entry.title}</h3>
-                  <div className="meta-row">
-                    <span>{entry.entryType}</span>
-                    {entry.logicalPath ? <span>{entry.logicalPath}</span> : null}
-                    <span>{entry.visibility}</span>
-                    <span>{new Date(entry.updatedAt).toLocaleString()}</span>
-                  </div>
-                  {entry.excerpt ? <p className="muted-copy">{entry.excerpt}</p> : null}
-                  {entry.tags.length > 0 ? (
-                    <div className="chip-row">
-                      {entry.tags.map((tag) => (
-                        <span className="chip" key={`${entry.id}-${tag}`}>
-                          #{tag}
-                        </span>
-                      ))}
-                    </div>
-                  ) : null}
-                  {entry.wikiLinks.length > 0 ? (
-                    <div className="meta-row" style={{ marginTop: 10 }}>
-                      <span>
-                        Links:{" "}
-                        {entry.wikiLinks.map((link) => link.linkText || link.targetTitle).join(", ")}
-                      </span>
-                    </div>
-                  ) : null}
-                  <div
-                    style={{
-                      marginTop: 14,
-                      paddingTop: 14,
-                      borderTop: "1px solid rgba(78, 47, 21, 0.12)"
-                    }}
-                  >
-                    <div className="editor-grid">
-                      <label className="label">
-                        Blog slug
-                        <input
-                          className="input"
-                          value={getPublishDraft(entry).slug}
-                          onChange={(event) =>
-                            updatePublishDraft(entry.id, { slug: event.target.value })
-                          }
-                          placeholder="my-entry"
-                        />
-                      </label>
-                      <label className="label">
-                        Publish mode
-                        <select
-                          className="select"
-                          value={getPublishDraft(entry).publishMode}
-                          onChange={(event) =>
-                            updatePublishDraft(entry.id, {
-                              publishMode: event.target.value
-                            })
-                          }
-                        >
-                          <option value="notes_only">Notes only</option>
-                          <option value="summary_only">Summary only</option>
-                          <option value="summary_and_notes">Summary and notes</option>
-                        </select>
-                      </label>
-                      <label className="label full">
-                        Public title
-                        <input
-                          className="input"
-                          value={getPublishDraft(entry).title}
-                          onChange={(event) =>
-                            updatePublishDraft(entry.id, { title: event.target.value })
-                          }
-                          placeholder="Public blog title"
-                        />
-                      </label>
-                      <label className="label full">
-                        Public description
-                        <input
-                          className="input"
-                          value={getPublishDraft(entry).description}
-                          onChange={(event) =>
-                            updatePublishDraft(entry.id, {
-                              description: event.target.value
-                            })
-                          }
-                          placeholder="Short blog description"
-                        />
-                      </label>
-                    </div>
-                    <div className="button-row" style={{ marginTop: 12 }}>
-                      <button
-                        className="button"
-                        type="button"
-                        onClick={() => handlePublish(entry)}
-                        disabled={publishingEntryId === entry.id}
-                      >
-                        {publishingEntryId === entry.id ? "Publishing..." : "Publish to blog"}
-                      </button>
-                      {entry.blogPost?.status === "published" ? (
-                        <>
-                          <a
-                            className="button-secondary"
-                            href={`/blog/${entry.blogPost.slug}`}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            View public post
-                          </a>
-                          <button
-                            className="button-danger"
-                            type="button"
-                            onClick={() => handleUnpublish(entry)}
-                            disabled={publishingEntryId === entry.id}
-                          >
-                            Unpublish
-                          </button>
-                        </>
-                      ) : null}
-                    </div>
-                  </div>
-                </article>
-              ))
-            )}
-          </div>
-        </section>
-      </aside>
     </div>
   );
 }
