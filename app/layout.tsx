@@ -16,7 +16,10 @@ const ibmPlexMono = IBM_Plex_Mono({
 
 export const metadata: Metadata = {
   title: "Second Brain Journal",
-  description: "Backend-first scaffold for a personal AI journaling system."
+  description: "Bao's Journaling, sharing, inspiring, and learning",
+  icons: {
+    icon: "/icon.svg"
+  }
 };
 
 export default function RootLayout({
