@@ -886,14 +886,18 @@ button.blog-primary-button:disabled {
 .blog-pinned-secondary-title {
   margin: 0;
   font-family: var(--blog-font-headline), sans-serif;
-  font-size: 1.55rem;
-  line-height: 1.15;
+  font-size: 1.32rem;
+  line-height: 1.12;
   letter-spacing: -0.05em;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
 }
 
 .blog-pinned-secondary-description {
   font-size: 0.88rem;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
 }
 
 .blog-pinned-tertiary-item {
@@ -924,8 +928,8 @@ button.blog-primary-button:disabled {
 .blog-pinned-tertiary-title {
   margin: 0;
   font-family: var(--blog-font-headline), sans-serif;
-  font-size: 0.96rem;
-  line-height: 1.25;
+  font-size: 0.88rem;
+  line-height: 1.18;
   letter-spacing: -0.03em;
   display: -webkit-box;
   overflow: hidden;
@@ -940,7 +944,7 @@ button.blog-primary-button:disabled {
   line-height: 1.5;
   display: -webkit-box;
   overflow: hidden;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
 }
 
@@ -1582,7 +1586,7 @@ button.blog-primary-button:disabled {
   }
 
   .blog-pinned-secondary-title {
-    font-size: 1.18rem;
+    font-size: 1.08rem;
   }
 
   .blog-pinned-secondary-description,
@@ -1697,7 +1701,7 @@ button.blog-primary-button:disabled {
   }
 
   .blog-pinned-secondary-title {
-    font-size: 1.25rem;
+    font-size: 1.12rem;
   }
 }
 
