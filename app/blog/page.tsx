@@ -4,14 +4,6 @@ import { blogService } from "@/modules/blog/blog.service";
 
 export const dynamic = "force-dynamic";
 
-function formatTimestamp(value: string | null) {
-  if (!value) {
-    return "UNPUBLISHED";
-  }
-
-  return new Date(value).toLocaleString("vi-VN");
-}
-
 function formatShortDate(value: string | null) {
   if (!value) {
     return "draft";
@@ -37,6 +29,8 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
   const activePath = resolvedSearchParams?.path?.trim() || null;
   const blogPosts = await blogService.listPostsByLogicalPath(activePath);
   const posts = blogPosts.items;
+  const pinnedPosts = posts.filter((post) => post.pinnedAt);
+  const recentPosts = posts.filter((post) => !post.pinnedAt);
   const totalPosts = posts.length;
   const totalWords = posts.reduce((sum, post) => {
     const wordCount = post.publishedContent.trim()
@@ -45,7 +39,6 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
     return sum + wordCount;
   }, 0);
   const averageWords = totalPosts > 0 ? Math.round(totalWords / totalPosts) : 0;
-  const latestPost = posts[0] ?? null;
 
   return (
     <main className="blog-page">
@@ -60,27 +53,27 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
               FILTER_PATH: <span>{activePath}</span>
             </div>
           ) : null}
-          <div className="blog-meta-stack" style={{ marginTop: 14 }}>
-            <div className="blog-meta-line">
-              <span>[TIMESTAMP]</span>
-              <span>{new Date().toLocaleString("vi-VN")}</span>
-            </div>
-            <div className="blog-meta-line">
-              <span>[FEED_STATE]</span>
-              <span>{totalPosts > 0 ? "SYNCED" : "IDLE"}</span>
-            </div>
-            <div className="blog-meta-line">
-              <span>[LAST_DEPLOY]</span>
-              <span>{formatTimestamp(latestPost?.publishedAt ?? null)}</span>
-            </div>
-          </div>
         </div>
 
-        <div className="blog-terminal-line">
-          <span className="blog-terminal-prompt">system@brain:~$</span> tail -n 1 /var/log/public_journal
-          <div className="blog-terminal-output">
-            &gt;&gt; PUBLIC_FEED: {totalPosts} PUBLISHED_NODES. AVG_SIZE: {averageWords} WORDS. FILTER: {activePath ?? "ALL"}. STATE: STABLE.
-          </div>
+        <div className="blog-hero-panels">
+          <section className="blog-hero-problem">
+            <p className="blog-hero-problem-title">Tôi giải quyết vấn đề gì?</p>
+            <p className="blog-hero-problem-copy">
+              Tôi giải quyết sự đứt gãy giữa <strong>Tầm nhìn Kinh doanh</strong> và{" "}
+              <strong>Thực thi Kỹ thuật</strong>. Tôi xây sản phẩm và hệ thống AI theo hướng không chỉ chạy
+              được, mà còn phải đúng hướng, rõ giá trị và có thể scale lâu dài.
+            </p>
+          </section>
+
+          <section className="blog-hero-bio">
+            <div className="blog-hero-bio-watermark">ROOT_ACCESS</div>
+            <p className="blog-hero-bio-label">// Short_Bio</p>
+            <p className="blog-hero-bio-copy">
+              "Xuất phát điểm là kỹ sư phần mềm, tôi chuyển dần sang vai trò xây sản phẩm và hệ thống tri
+              thức vì nhận ra: code chỉ là công cụ, còn cấu trúc sản phẩm và chất lượng quyết định mới là
+              thứ tạo ra đòn bẩy thật sự."
+            </p>
+          </section>
         </div>
       </section>
 
@@ -115,23 +108,51 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
         </section>
       ) : null}
 
+      {pinnedPosts.length > 0 ? (
+        <section className="blog-pinned-section">
+          <div className="blog-section-heading">
+            <h2 className="blog-section-title">Pinned nodes</h2>
+            <span className="blog-section-caption">HOME_SIGNAL: {String(pinnedPosts.length).padStart(2, "0")}</span>
+          </div>
+
+          <div className="blog-pinned-grid">
+            {pinnedPosts.map((post) => (
+              <Link className="blog-pinned-card" href={`/blog/${post.slug}`} key={post.id}>
+                <div className="blog-pinned-label">Pinned</div>
+                <h3 className="blog-pinned-title">{post.title}</h3>
+                {post.description ? (
+                  <p className="blog-pinned-description">{post.description}</p>
+                ) : (
+                  <p className="blog-pinned-description">No excerpt available yet.</p>
+                )}
+                <div className="blog-pinned-path">{post.logicalPath ?? "uncategorized"}</div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       <PublicBlogChat />
 
       <div className="blog-grid">
         <section className="blog-section">
           <div className="blog-section-heading">
             <h2 className="blog-section-title">Recent entries</h2>
-            <span className="blog-section-caption">LIMIT: {String(Math.min(5, totalPosts)).padStart(2, "0")}_SHOWN</span>
+            <span className="blog-section-caption">
+              LIMIT: {String(Math.min(5, recentPosts.length)).padStart(2, "0")}_SHOWN
+            </span>
           </div>
 
           <div className="blog-entry-list">
-            {posts.length === 0 ? (
+            {recentPosts.length === 0 ? (
               <div className="blog-terminal-line">
                 <span className="blog-terminal-prompt">system@brain:~$</span> ls /public/journal
-                <div className="blog-terminal-output">&gt;&gt; NO_PUBLISHED_POSTS_FOUND</div>
+                <div className="blog-terminal-output">
+                  &gt;&gt; {pinnedPosts.length > 0 ? "ONLY_PINNED_POSTS_VISIBLE" : "NO_PUBLISHED_POSTS_FOUND"}
+                </div>
               </div>
             ) : (
-              posts.slice(0, 5).map((post, index) => (
+              recentPosts.slice(0, 5).map((post, index) => (
                 <Link className="blog-entry-row" href={`/blog/${post.slug}`} key={post.id}>
                   <div className="blog-entry-index">{String(index + 1).padStart(2, "0")}</div>
                   <div className="blog-entry-body">

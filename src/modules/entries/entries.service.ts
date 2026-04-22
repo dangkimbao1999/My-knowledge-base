@@ -390,15 +390,16 @@ function serializeEntry(entry: EntryRecord) {
     createdAt: entry.createdAt.toISOString(),
     updatedAt: entry.updatedAt.toISOString(),
     blogPost: entry.blogPost
-      ? {
-          id: entry.blogPost.id,
-          slug: entry.blogPost.slug,
-          title: entry.blogPost.title,
-          description: entry.blogPost.description,
-          status: entry.blogPost.status,
-          publishedAt: entry.blogPost.publishedAt?.toISOString() ?? null
-        }
-      : null
+        ? {
+            id: entry.blogPost.id,
+            slug: entry.blogPost.slug,
+            title: entry.blogPost.title,
+            description: entry.blogPost.description,
+            status: entry.blogPost.status,
+            pinnedAt: entry.blogPost.pinnedAt?.toISOString() ?? null,
+            publishedAt: entry.blogPost.publishedAt?.toISOString() ?? null
+          }
+        : null
   };
 }
 

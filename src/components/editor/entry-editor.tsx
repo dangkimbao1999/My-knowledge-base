@@ -26,6 +26,7 @@ type EntryCard = {
     title: string;
     description: string | null;
     status: string;
+    pinnedAt: string | null;
     publishedAt: string | null;
   } | null;
   updatedAt: string;
@@ -150,6 +151,7 @@ export function EntryEditor({ initialEntries, initialNavigation }: EntryEditorPr
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [isPinning, setIsPinning] = useState(false);
   const [publishDraft, setPublishDraft] = useState<PublishDraftState>(
     toPublishDraft(initialEntries[0] ?? null)
   );
@@ -425,6 +427,7 @@ export function EntryEditor({ initialEntries, initialNavigation }: EntryEditorPr
           title: string;
           description: string | null;
           status: string;
+          pinnedAt: string | null;
           publishedAt: string | null;
         };
         error?: { message?: string };
@@ -447,6 +450,7 @@ export function EntryEditor({ initialEntries, initialNavigation }: EntryEditorPr
                   title: payload.data!.title,
                   description: payload.data!.description,
                   status: payload.data!.status,
+                  pinnedAt: payload.data!.pinnedAt,
                   publishedAt: payload.data!.publishedAt
                 }
               }
@@ -498,6 +502,7 @@ export function EntryEditor({ initialEntries, initialNavigation }: EntryEditorPr
                 blogPost: {
                   ...entry.blogPost,
                   status: "unpublished",
+                  pinnedAt: null,
                   publishedAt: null
                 }
               }
@@ -509,6 +514,124 @@ export function EntryEditor({ initialEntries, initialNavigation }: EntryEditorPr
       setError(publishError instanceof Error ? publishError.message : "Unable to unpublish entry.");
     } finally {
       setIsPublishing(false);
+    }
+  }
+
+  async function handlePin() {
+    if (!selectedEntry || selectedEntry.blogPost?.status !== "published") {
+      return;
+    }
+
+    setIsPinning(true);
+    setError("");
+    setStatus("");
+
+    try {
+      const response = await fetch("/api/blog/pin", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          entryId: selectedEntry.id
+        })
+      });
+
+      const payload = (await response.json()) as {
+        success: boolean;
+        data?: {
+          id: string;
+          slug: string;
+          title: string;
+          description: string | null;
+          status: string;
+          pinnedAt: string | null;
+          publishedAt: string | null;
+        };
+        error?: { message?: string };
+      };
+
+      if (!response.ok || !payload.success || !payload.data) {
+        throw new Error(payload.error?.message || "Unable to pin blog post.");
+      }
+
+      setEntries((current) =>
+        current.map((entry) =>
+          entry.id === selectedEntry.id && entry.blogPost
+            ? {
+                ...entry,
+                blogPost: {
+                  ...entry.blogPost,
+                  pinnedAt: payload.data!.pinnedAt
+                }
+              }
+            : entry
+        )
+      );
+      setStatus("Blog post pinned to home.");
+    } catch (pinError) {
+      setError(pinError instanceof Error ? pinError.message : "Unable to pin blog post.");
+    } finally {
+      setIsPinning(false);
+    }
+  }
+
+  async function handleUnpin() {
+    if (!selectedEntry || !selectedEntry.blogPost) {
+      return;
+    }
+
+    setIsPinning(true);
+    setError("");
+    setStatus("");
+
+    try {
+      const response = await fetch("/api/blog/unpin", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          entryId: selectedEntry.id
+        })
+      });
+
+      const payload = (await response.json()) as {
+        success: boolean;
+        data?: {
+          id: string;
+          slug: string;
+          title: string;
+          description: string | null;
+          status: string;
+          pinnedAt: string | null;
+          publishedAt: string | null;
+        };
+        error?: { message?: string };
+      };
+
+      if (!response.ok || !payload.success || !payload.data) {
+        throw new Error(payload.error?.message || "Unable to unpin blog post.");
+      }
+
+      setEntries((current) =>
+        current.map((entry) =>
+          entry.id === selectedEntry.id && entry.blogPost
+            ? {
+                ...entry,
+                blogPost: {
+                  ...entry.blogPost,
+                  pinnedAt: payload.data!.pinnedAt
+                }
+              }
+            : entry
+        )
+      );
+      setStatus("Blog post removed from pinned section.");
+    } catch (pinError) {
+      setError(pinError instanceof Error ? pinError.message : "Unable to unpin blog post.");
+    } finally {
+      setIsPinning(false);
     }
   }
 
@@ -734,6 +857,7 @@ export function EntryEditor({ initialEntries, initialNavigation }: EntryEditorPr
                   <div className="cms-publish-meta">
                     <span>Status: {selectedEntry.blogPost?.status ?? "draft"}</span>
                     <span>Visibility: {selectedEntry.visibility}</span>
+                    <span>Pinned: {selectedEntry.blogPost?.pinnedAt ? "yes" : "no"}</span>
                   </div>
 
                   <div className="button-row">
@@ -748,6 +872,20 @@ export function EntryEditor({ initialEntries, initialNavigation }: EntryEditorPr
 
                     {selectedEntry.blogPost?.status === "published" ? (
                       <>
+                        <button
+                          className="button-secondary"
+                          type="button"
+                          onClick={selectedEntry.blogPost.pinnedAt ? handleUnpin : handlePin}
+                          disabled={isPinning}
+                        >
+                          {isPinning
+                            ? selectedEntry.blogPost.pinnedAt
+                              ? "Unpinning..."
+                              : "Pinning..."
+                            : selectedEntry.blogPost.pinnedAt
+                              ? "Unpin from home"
+                              : "Pin on home"}
+                        </button>
                         <a
                           className="button-secondary"
                           href={`/blog/${selectedEntry.blogPost.slug}`}

@@ -428,12 +428,14 @@ model BlogPost {
   status               BlogPostStatus  @default(draft)
   publishedContent     String
   publishedSummaryId   String?
+  pinnedAt             DateTime?
   publishedAt          DateTime?
   createdAt            DateTime        @default(now())
   updatedAt            DateTime        @updatedAt
   entry                Entry           @relation(fields: [entryId], references: [id], onDelete: Cascade)
 
   @@index([status, publishedAt(sort: Desc)])
+  @@index([status, pinnedAt(sort: Desc), publishedAt(sort: Desc)])
 }
 
 model ProcessingJob {

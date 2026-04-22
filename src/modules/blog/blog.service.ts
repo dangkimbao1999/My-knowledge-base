@@ -104,6 +104,7 @@ function serializeBlogPost(post: Awaited<ReturnType<typeof prisma.blogPost.findU
     description: post.description,
     status: post.status,
     publishedContent: post.publishedContent,
+    pinnedAt: post.pinnedAt?.toISOString() ?? null,
     publishedAt: post.publishedAt?.toISOString() ?? null,
     createdAt: post.createdAt.toISOString(),
     updatedAt: post.updatedAt.toISOString()
@@ -118,6 +119,7 @@ function serializeListPost(post: {
   description: string | null;
   status: string;
   publishedContent: string;
+  pinnedAt: Date | null;
   publishedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -133,6 +135,7 @@ function serializeListPost(post: {
     description: post.description,
     status: post.status,
     publishedContent: post.publishedContent,
+    pinnedAt: post.pinnedAt?.toISOString() ?? null,
     publishedAt: post.publishedAt?.toISOString() ?? null,
     createdAt: post.createdAt.toISOString(),
     updatedAt: post.updatedAt.toISOString(),
@@ -296,6 +299,7 @@ export const blogService = {
         },
         data: {
           status: "unpublished",
+          pinnedAt: null,
           publishedAt: null
         }
       });
@@ -322,9 +326,14 @@ export const blogService = {
           }
         }
       },
-      orderBy: {
-        publishedAt: "desc"
-      }
+      orderBy: [
+        {
+          pinnedAt: "desc"
+        },
+        {
+          publishedAt: "desc"
+        }
+      ]
     });
 
     return {
@@ -391,9 +400,14 @@ export const blogService = {
           }
         }
       },
-      orderBy: {
-        publishedAt: "desc"
-      }
+      orderBy: [
+        {
+          pinnedAt: "desc"
+        },
+        {
+          publishedAt: "desc"
+        }
+      ]
     });
 
     return {
@@ -413,6 +427,68 @@ export const blogService = {
     if (!post) {
       throw new ApiError("Blog post not found", 404);
     }
+
+    return serializeBlogPost(post);
+  },
+
+  async pinEntry(userId: string, entryId: string) {
+    const entry = await prisma.entry.findFirst({
+      where: {
+        id: entryId,
+        ownerId: userId
+      },
+      include: {
+        blogPost: true
+      }
+    });
+
+    if (!entry) {
+      throw new ApiError("Entry not found", 404);
+    }
+
+    if (!entry.blogPost || entry.blogPost.status !== "published") {
+      throw new ApiError("Only published blog posts can be pinned", 400);
+    }
+
+    const post = await prisma.blogPost.update({
+      where: {
+        entryId: entry.id
+      },
+      data: {
+        pinnedAt: new Date()
+      }
+    });
+
+    return serializeBlogPost(post);
+  },
+
+  async unpinEntry(userId: string, entryId: string) {
+    const entry = await prisma.entry.findFirst({
+      where: {
+        id: entryId,
+        ownerId: userId
+      },
+      include: {
+        blogPost: true
+      }
+    });
+
+    if (!entry) {
+      throw new ApiError("Entry not found", 404);
+    }
+
+    if (!entry.blogPost) {
+      throw new ApiError("Blog post not found", 404);
+    }
+
+    const post = await prisma.blogPost.update({
+      where: {
+        entryId: entry.id
+      },
+      data: {
+        pinnedAt: null
+      }
+    });
 
     return serializeBlogPost(post);
   }
