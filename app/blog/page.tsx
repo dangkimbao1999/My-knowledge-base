@@ -218,26 +218,23 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
               <h3 className="blog-timeline-title blog-timeline-title-conflict">
                 02. Conflict: The Audit & Strategic Pivot
               </h3>
-              <p className="blog-timeline-meta blog-timeline-meta-conflict">Failed Interviews: Zalo & Qode</p>
+              <p className="blog-timeline-meta blog-timeline-meta-conflict">Giai đoạn thất nghiệp: Phỏng vấn thất bại tại Zalo, Qode, ... và giao đoạn chuyển giao khó khăn</p>
               <p className="blog-timeline-copy">
-                Thất bại không phải là dấu chấm hết, mà là một đợt audit năng lực. Việc không vượt qua
-                vòng tuyển dụng tại <strong>Zalo</strong> và <strong>Qode</strong> chỉ ra những bug lớn
-                trong tư duy của tôi lúc bấy giờ: quá tập trung vào giải pháp kỹ thuật mà quên mất câu
-                chuyện giá trị người dùng và thiếu sự sắc bén trong đàm phán stakeholder.
+                Thất bại không phải là dấu chấm hết, mà là một cơ hội mài giũa năng lực. Việc không vượt qua
+                vòng tuyển dụng tại <strong>Zalo</strong> chỉ ra những lỗ hổng lớn
+                trong tư duy của tôi lúc này: quá tập trung vào giải pháp \(solution space\) mà chưa đi đủ sâu về <strong>Problem space</strong> và thiếu sự sắc bén trong giao tiếp với stakeholder.
               </p>
               <div className="blog-failure-grid">
                 <div className="blog-failure-card">
                   <strong>Audit Findings // Zalo</strong>
                   <span>
-                    Thiếu cái nhìn bao quát về business ecosystem. Cần mở rộng tầm nhìn từ function sang
-                    market fit.
+                    Thiếu cái nhìn bao quát về business ecosystem. Đề bài nhiều khi là <strong>hỏa mù</strong> nếu vội vã và không cắt được lớp của vấn đề, từ đó trụ cột không vững chắc và giải pháp không đủ thuyết phục
                   </span>
                 </div>
                 <div className="blog-failure-card">
-                  <strong>Audit Findings // Qode</strong>
+                  <strong>Hit rate hiện chỉ có 15% </strong>
                   <span>
-                    Kỹ năng đàm phán chưa tối ưu cho các luồng ý kiến trái chiều. Cần rèn luyện
-                    storytelling chiến lược hơn.
+                    Tôi nhận ra giai đoạn vừa rồi tôi khá là lan man trong việc tìm kiếm khi chưa nghĩ kỹ ngách mình muốn theo đuổi tiếp theo, tuy nhiên bây giờ thì 100% <strong>Fintech + AI</strong> để tận dụng tốt nhất kỹ năng đã có sẵn
                   </span>
                 </div>
               </div>
@@ -247,13 +244,10 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
           <article className="blog-timeline-item resolution">
             <div className="blog-timeline-dot">03</div>
             <div className="blog-timeline-content">
-              <h3 className="blog-timeline-title">03. Resolution: The Awakening at U2U & SSID</h3>
-              <p className="blog-timeline-meta">Decentralized World | Virtual Fintech | Compliance</p>
+              <h3 className="blog-timeline-title">03. Resolution: The Awakening (still waiting...)</h3>
+              <p className="blog-timeline-meta">PO/PM/BA | Fintech | AI</p>
               <p className="blog-timeline-copy">
-                Sau khi debug chính mình, tôi tìm thấy điểm giao thoa phù hợp. Tôi không chỉ quản lý
-                backlog, tôi quản lý <strong>tầm nhìn sản phẩm</strong>. Tôi chuyển hóa các cơ chế tài
-                chính truyền thống sang thế giới virtual fintech và vẫn giữ được tính tuân thủ pháp lý
-                cao.
+                Hãy chờ câu chuyện thành công của tôi trong giai đoạn chuyển giao này nhé
               </p>
             </div>
           </article>
@@ -294,10 +288,9 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
 
         <div className="blog-expertise-quote">
           <blockquote>
-            "Mọi giải pháp kỹ thuật vĩ đại đều vô nghĩa nếu PO không thể kể một câu chuyện đủ thuyết phục
-            để kết nối phần mềm với giá trị kinh doanh thực thụ."
+            "Product architecture is the way all the pieces of a product fit together to create something people actually want and can use"
           </blockquote>
-          <p>Product Architect Creed</p>
+          <p>Michael Ballé</p>
         </div>
       </section>
 
