@@ -51,17 +51,17 @@ export default async function BlogLayout({ children }: { children: ReactNode }) 
         <aside className="blog-sidebar">
           <div className="blog-sidebar-stack">
             <div className="blog-sidebar-card">
-              <div className="blog-sidebar-kicker">Public knowledge map</div>
-              <h2 className="blog-sidebar-title">Logical Paths</h2>
+              <div className="blog-sidebar-kicker">Sơ đồ thông tin</div>
+              <h2 className="blog-sidebar-title">Các thư mục</h2>
               <p className="blog-sidebar-copy">
-                Navigate the public layer of the wiki through curated paths and filtered topic clusters.
+                Tham quan các tầng của wiki thông qua các thư mục sau.
               </p>
               <BlogSidebarNav logicalPaths={logicalPaths} />
             </div>
 
             <div className="blog-hero-card blog-sidebar-chart">
               <div className="blog-hero-card-head">
-                <span className="blog-mono-label">Architectural_Alignment_Chart</span>
+                <span className="blog-mono-label">Alignment_Chart</span>
                 <span className="blog-status-ok">STATUS: STABLE</span>
               </div>
 

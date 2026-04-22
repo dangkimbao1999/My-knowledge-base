@@ -42,13 +42,13 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
         <div className="blog-hero-copy">
           <div className="blog-section-tag">Role: Product Architect</div>
           <h1 className="blog-hero-title">
-            The Bridge Between <span className="blog-hero-accent">Logic</span> and{" "}
-            <span className="blog-hero-highlight">Value.</span>
+            At the intersection of <span className="blog-hero-accent">Technical </span> {" "}
+            and <span className="blog-hero-highlight">Product </span> ownership
           </h1>
           <p className="blog-hero-description">
-            Tôi không chỉ xây dựng phần mềm; tôi thiết kế các giải pháp tài chính lai kết nối Web3, AI
-            và giá trị thực xã hội. Bằng cách giải quyết sự đứt gãy giữa Kinh doanh và Kỹ thuật, tôi
-            kiến tạo những sản phẩm có tính khả thi tuyệt đối.
+            Đang khám phá điểm giao thoa giữa Technical và Product Ownership. 
+            Tôi gắn kết sự xuất sắc về kỹ thuật với tầm nhìn sản phẩm để xây dựng các hệ thống chính xác và có khả năng mở rộng, 
+            đặc biệt là trong lĩnh vực Fintech và AI. Tâm huyết với việc kết nối các bên liên quan và đội ngũ phát triển để thúc đẩy sự đổi mới toàn diện.
           </p>
         </div>
 
@@ -60,8 +60,8 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
       {activePath ? (
         <section className="blog-filter-banner">
           <div>
-            <div className="blog-section-tag">Filter Active</div>
-            <strong className="blog-filter-text">Showing only public posts from `{activePath}`</strong>
+            <div className="blog-section-tag">Bộ lọc</div>
+            <strong className="blog-filter-text">Đang hiện bài viết từ `{activePath}`</strong>
           </div>
           <Link className="blog-filter-clear" href="/blog">
             Clear Filter
@@ -73,10 +73,10 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
         <section className="blog-pinned-section">
           <div className="blog-section-header">
             <div>
-              <div className="blog-section-tag">Pinned Layer</div>
-              <h2 className="blog-section-title">Signals I want visitors to see first</h2>
+              <div className="blog-section-tag">Pinned</div>
+              <h2 className="blog-section-title">Bài viết</h2>
             </div>
-            <span className="blog-section-note">HOME_SIGNAL: {String(pinnedPosts.length).padStart(2, "0")}</span>
+            <span className="blog-section-note">Số lượng: {String(pinnedPosts.length).padStart(2, "0")}</span>
           </div>
 
           <div className="blog-pinned-layout">
@@ -116,7 +116,7 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
                   </Link>
                 ))
               ) : (
-                <div className="blog-empty-card">Pin a few more posts to populate the secondary layer.</div>
+                <div className="blog-empty-card">.</div>
               )}
             </div>
 
@@ -136,7 +136,7 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
                   </Link>
                 ))
               ) : (
-                <div className="blog-empty-card">Lower-priority pinned items will appear here.</div>
+                <div className="blog-empty-card">.</div>
               )}
             </div>
           </div>
@@ -146,8 +146,8 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
       <section className="blog-logs-section">
         <div className="blog-section-header">
           <div>
-            <div className="blog-section-tag">Public Logs</div>
-            <h2 className="blog-section-title">Latest published entries</h2>
+            <div className="blog-section-tag">Public</div>
+            <h2 className="blog-section-title">Latest</h2>
           </div>
           <span className="blog-section-note">
             LIMIT: {String(publicLogs.length).padStart(2, "0")}_VISIBLE
@@ -304,7 +304,7 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
           những sản phẩm tài chính vừa dẫn đầu về công nghệ, vừa đủ bền vững để tạo tác động xã hội dài
           hạn.
         </p>
-        <a className="blog-primary-button" href="#connect">
+        <a className="blog-primary-button" href="https://www.linkedin.com/in/iambao/">
           Initiate Collaboration
         </a>
       </section>
