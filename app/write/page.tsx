@@ -5,7 +5,13 @@ import { getOptionalAuth } from "@/lib/auth";
 import { authService } from "@/modules/auth/auth.service";
 import { entriesService } from "@/modules/entries/entries.service";
 
-export default async function WritePage() {
+type WritePageProps = {
+  searchParams?: Promise<{
+    entry?: string;
+  }>;
+};
+
+export default async function WritePage({ searchParams }: WritePageProps) {
   const auth = await getOptionalAuth();
 
   if (!auth) {
@@ -15,6 +21,8 @@ export default async function WritePage() {
   const user = await authService.currentUser(auth.userId);
   const entryResponse = await entriesService.listEntries(auth.userId, new URLSearchParams());
   const navigation = await entriesService.getNavigationTree(auth.userId);
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const selectedEntryId = resolvedSearchParams?.entry?.trim() || null;
 
   return (
     <main className="shell write-shell">
@@ -34,7 +42,11 @@ export default async function WritePage() {
         </div>
       </section>
 
-      <EntryEditor initialEntries={entryResponse.items} initialNavigation={navigation.root} />
+      <EntryEditor
+        initialEntries={entryResponse.items}
+        initialNavigation={navigation.root}
+        initialSelectedEntryId={selectedEntryId}
+      />
     </main>
   );
 }

@@ -503,6 +503,14 @@ select {
   padding: 2px 8px;
 }
 
+.preview a.wiki-link {
+  text-decoration: none;
+}
+
+.preview a.wiki-link:hover {
+  background: rgba(201, 111, 49, 0.2);
+}
+
 .entry-list {
   display: grid;
   gap: 14px;

@@ -51,6 +51,7 @@ type NavigationNode = {
 type EntryEditorProps = {
   initialEntries: EntryCard[];
   initialNavigation: NavigationNode;
+  initialSelectedEntryId?: string | null;
 };
 
 type DraftState = {
@@ -140,12 +141,14 @@ function toPublishDraft(entry: EntryCard | null): PublishDraftState {
   };
 }
 
-export function EntryEditor({ initialEntries, initialNavigation }: EntryEditorProps) {
+export function EntryEditor({ initialEntries, initialNavigation, initialSelectedEntryId }: EntryEditorProps) {
+  const initialSelectedEntry =
+    initialEntries.find((entry) => entry.id === initialSelectedEntryId) ?? initialEntries[0] ?? null;
   const [entries, setEntries] = useState(initialEntries);
   const [navigation, setNavigation] = useState(initialNavigation);
-  const [selectedEntryId, setSelectedEntryId] = useState<string | null>(initialEntries[0]?.id ?? null);
+  const [selectedEntryId, setSelectedEntryId] = useState<string | null>(initialSelectedEntry?.id ?? null);
   const [draft, setDraft] = useState<DraftState>(
-    initialEntries[0] ? toDraft(initialEntries[0]) : createEmptyDraft()
+    initialSelectedEntry ? toDraft(initialSelectedEntry) : createEmptyDraft()
   );
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(
     collectPaths(initialNavigation)
@@ -157,13 +160,27 @@ export function EntryEditor({ initialEntries, initialNavigation }: EntryEditorPr
   const [isPublishing, setIsPublishing] = useState(false);
   const [isPinning, setIsPinning] = useState(false);
   const [publishDraft, setPublishDraft] = useState<PublishDraftState>(
-    toPublishDraft(initialEntries[0] ?? null)
+    toPublishDraft(initialSelectedEntry)
   );
 
   const selectedEntry = useMemo(
     () => entries.find((entry) => entry.id === selectedEntryId) ?? null,
     [entries, selectedEntryId]
   );
+  const previewWikiLinkMap = useMemo(() => {
+    const map = new Map<string, string>();
+
+    for (const entry of entries) {
+      const href = `/write?entry=${encodeURIComponent(entry.id)}`;
+      map.set(entry.title.trim().toLowerCase(), href);
+
+      for (const alias of entry.aliases) {
+        map.set(alias.trim().toLowerCase(), href);
+      }
+    }
+
+    return map;
+  }, [entries]);
 
   useEffect(() => {
     setPublishDraft(toPublishDraft(selectedEntry));
@@ -896,11 +913,17 @@ export function EntryEditor({ initialEntries, initialNavigation }: EntryEditorPr
           />
 
           <aside className="cms-preview-panel">
-            <p className="panel-kicker">Preview</p>
-            <div
-              className="preview cms-preview"
-              dangerouslySetInnerHTML={{ __html: renderMarkdownPreview(draft.content) }}
-            />
+              <p className="panel-kicker">Preview</p>
+              <div
+                className="preview cms-preview"
+                dangerouslySetInnerHTML={{
+                  __html: renderMarkdownPreview(draft.content, {
+                    resolveWikiLink: (targetTitle) => ({
+                      href: previewWikiLinkMap.get(targetTitle.trim().toLowerCase()) ?? null
+                    })
+                  })
+                }}
+              />
 
             <section className="cms-publish-panel">
               <p className="panel-kicker">Public Projection</p>

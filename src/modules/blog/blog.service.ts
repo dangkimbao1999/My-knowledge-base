@@ -1,4 +1,5 @@
 import { ApiError } from "@/lib/api";
+import { extractWikiLinks } from "@/lib/markdown";
 import { prisma } from "@/lib/prisma";
 import { buildPublishedContent } from "@/modules/blog/published-content";
 
@@ -417,6 +418,48 @@ export const blogService = {
     }
 
     return serializeBlogPost(post);
+  },
+
+  async resolvePublicWikiLinkMap(markdown: string) {
+    const extractedLinks = extractWikiLinks(markdown);
+
+    if (extractedLinks.length === 0) {
+      return {};
+    }
+
+    const posts = await prisma.blogPost.findMany({
+      where: {
+        status: "published"
+      },
+      include: {
+        entry: {
+          select: {
+            title: true,
+            aliases: true
+          }
+        }
+      }
+    });
+
+    const hrefMap: Record<string, string> = {};
+
+    for (const post of posts) {
+      hrefMap[post.entry.title.trim().toLowerCase()] = `/blog/${post.slug}`;
+
+      for (const alias of post.entry.aliases) {
+        hrefMap[alias.trim().toLowerCase()] = `/blog/${post.slug}`;
+      }
+    }
+
+    return extractedLinks.reduce<Record<string, string>>((accumulator, link) => {
+      const href = hrefMap[link.targetTitle.trim().toLowerCase()];
+
+      if (href) {
+        accumulator[link.targetTitle.trim().toLowerCase()] = href;
+      }
+
+      return accumulator;
+    }, {});
   },
 
   async pinEntry(userId: string, entryId: string, pinSlot: number) {

@@ -5,10 +5,31 @@ function escapeHtml(input: string) {
     .replaceAll(">", "&gt;");
 }
 
-function renderInline(text: string) {
+function escapeAttribute(input: string) {
+  return escapeHtml(input).replaceAll('"', "&quot;");
+}
+
+type WikiLinkResolution = {
+  href?: string | null;
+  className?: string;
+};
+
+type RenderMarkdownPreviewOptions = {
+  resolveWikiLink?: (targetTitle: string, alias?: string) => WikiLinkResolution | null | undefined;
+};
+
+function renderInline(text: string, options?: RenderMarkdownPreviewOptions) {
   return escapeHtml(text)
     .replace(/\[\[([^[\]\|]+?)(?:\|([^[\]]+))?\]\]/g, (_, target: string, alias?: string) => {
-      return `<span class="wiki-link">${escapeHtml((alias || target).trim())}</span>`;
+      const label = escapeHtml((alias || target).trim());
+      const resolution = options?.resolveWikiLink?.(target.trim(), alias?.trim());
+      const className = ["wiki-link", resolution?.className].filter(Boolean).join(" ");
+
+      if (resolution?.href) {
+        return `<a class="${escapeAttribute(className)}" href="${escapeAttribute(resolution.href)}">${label}</a>`;
+      }
+
+      return `<span class="${escapeAttribute(className)}">${label}</span>`;
     })
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<span class="wiki-link">$1</span>')
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
@@ -16,7 +37,7 @@ function renderInline(text: string) {
     .replace(/`([^`]+)`/g, "<code>$1</code>");
 }
 
-export function renderMarkdownPreview(markdown: string) {
+export function renderMarkdownPreview(markdown: string, options?: RenderMarkdownPreviewOptions) {
   const lines = markdown.replace(/\r\n/g, "\n").split("\n");
   const html: string[] = [];
   let inCodeBlock = false;
@@ -47,26 +68,26 @@ export function renderMarkdownPreview(markdown: string) {
     if (/^#{1,6}\s/.test(line)) {
       const level = line.match(/^#+/)?.[0].length ?? 1;
       const content = line.replace(/^#{1,6}\s*/, "");
-      html.push(`<h${level}>${renderInline(content)}</h${level}>`);
+      html.push(`<h${level}>${renderInline(content, options)}</h${level}>`);
       continue;
     }
 
     if (/^\s*>\s?/.test(line)) {
-      html.push(`<blockquote>${renderInline(line.replace(/^\s*>\s?/, ""))}</blockquote>`);
+      html.push(`<blockquote>${renderInline(line.replace(/^\s*>\s?/, ""), options)}</blockquote>`);
       continue;
     }
 
     if (/^\s*[-*+]\s+/.test(line)) {
-      html.push(`<p>&bull; ${renderInline(line.replace(/^\s*[-*+]\s+/, ""))}</p>`);
+      html.push(`<p>&bull; ${renderInline(line.replace(/^\s*[-*+]\s+/, ""), options)}</p>`);
       continue;
     }
 
     if (/^\s*\d+\.\s+/.test(line)) {
-      html.push(`<p>${renderInline(line.replace(/^\s*\d+\.\s+/, ""))}</p>`);
+      html.push(`<p>${renderInline(line.replace(/^\s*\d+\.\s+/, ""), options)}</p>`);
       continue;
     }
 
-    html.push(`<p>${renderInline(line)}</p>`);
+    html.push(`<p>${renderInline(line, options)}</p>`);
   }
 
   if (inCodeBlock) {

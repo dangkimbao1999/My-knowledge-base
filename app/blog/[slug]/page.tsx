@@ -19,6 +19,7 @@ function formatTimestamp(value: string | null) {
 export default async function BlogDetailPage({ params }: BlogDetailPageProps) {
   const { slug } = await params;
   const [post, posts] = await Promise.all([blogService.getPublicPost(slug), blogService.listPosts()]);
+  const wikiLinkMap = await blogService.resolvePublicWikiLinkMap(post.publishedContent);
 
   const relatedPosts = posts.items.filter((item) => item.slug !== slug).slice(0, 4);
   const contentWordCount = post.publishedContent.trim() ? post.publishedContent.trim().split(/\s+/).length : 0;
@@ -27,19 +28,24 @@ export default async function BlogDetailPage({ params }: BlogDetailPageProps) {
     <div className="blog-page">
       <section className="blog-detail-hero">
         <div className="blog-section-tag">Public Node</div>
+        <Link className="blog-back-link" href="/blog">
+            Back To Public Log
+        </Link>
         <h1 className="blog-detail-title">{post.title}</h1>
         {post.description ? <p className="blog-detail-description">{post.description}</p> : null}
       </section>
 
       <div className="blog-detail-grid">
         <article className="blog-detail-main">
-          <Link className="blog-back-link" href="/blog">
-            Back To Public Log
-          </Link>
-
           <div
             className="preview blog-article-preview"
-            dangerouslySetInnerHTML={{ __html: renderMarkdownPreview(post.publishedContent) }}
+            dangerouslySetInnerHTML={{
+              __html: renderMarkdownPreview(post.publishedContent, {
+                resolveWikiLink: (targetTitle) => ({
+                  href: wikiLinkMap[targetTitle.trim().toLowerCase()] ?? null
+                })
+              })
+            }}
           />
         </article>
 
