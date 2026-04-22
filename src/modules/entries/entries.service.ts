@@ -397,6 +397,7 @@ function serializeEntry(entry: EntryRecord) {
             description: entry.blogPost.description,
             status: entry.blogPost.status,
             pinnedAt: entry.blogPost.pinnedAt?.toISOString() ?? null,
+            pinSlot: entry.blogPost.pinSlot ?? null,
             publishedAt: entry.blogPost.publishedAt?.toISOString() ?? null
           }
         : null

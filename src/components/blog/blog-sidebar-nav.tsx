@@ -19,25 +19,22 @@ export function BlogSidebarNav({ logicalPaths }: BlogSidebarNavProps) {
 
   return (
     <nav className="blog-sidebar-nav">
-      <Link className={`blog-sidebar-link ${isBlogHome && !activePath ? "active" : ""}`} href="/blog">
-        <span className="blog-sidebar-link-icon">&gt;_</span>
-        <span>ROOT/all</span>
+      <Link className={`blog-path-link ${isBlogHome && !activePath ? "active" : ""}`} href="/blog">
+        <span className="blog-path-label">All public posts</span>
+        <span className="blog-path-count">00</span>
       </Link>
 
-      <div className="blog-sidebar-section-label">LOGICAL_PATHS</div>
-
       {logicalPaths.length === 0 ? (
-        <div className="blog-sidebar-empty">NO_PUBLIC_PATHS</div>
+        <div className="blog-sidebar-empty">No public paths yet.</div>
       ) : (
         logicalPaths.map((item) => {
           const href = `/blog?path=${encodeURIComponent(item.logicalPath)}` as Route;
           const isActive = isBlogHome && activePath === item.logicalPath;
 
           return (
-            <Link className={`blog-sidebar-link ${isActive ? "active" : ""}`} href={href} key={item.logicalPath}>
-              <span className="blog-sidebar-link-icon">::</span>
-              <span>{item.logicalPath}</span>
-              <span className="blog-sidebar-link-count">{String(item.postCount).padStart(2, "0")}</span>
+            <Link className={`blog-path-link ${isActive ? "active" : ""}`} href={href} key={item.logicalPath}>
+              <span className="blog-path-label">{item.logicalPath}</span>
+              <span className="blog-path-count">{String(item.postCount).padStart(2, "0")}</span>
             </Link>
           );
         })

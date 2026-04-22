@@ -105,6 +105,7 @@ function serializeBlogPost(post: Awaited<ReturnType<typeof prisma.blogPost.findU
     status: post.status,
     publishedContent: post.publishedContent,
     pinnedAt: post.pinnedAt?.toISOString() ?? null,
+    pinSlot: post.pinSlot ?? null,
     publishedAt: post.publishedAt?.toISOString() ?? null,
     createdAt: post.createdAt.toISOString(),
     updatedAt: post.updatedAt.toISOString()
@@ -120,6 +121,7 @@ function serializeListPost(post: {
   status: string;
   publishedContent: string;
   pinnedAt: Date | null;
+  pinSlot: number | null;
   publishedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -136,11 +138,38 @@ function serializeListPost(post: {
     status: post.status,
     publishedContent: post.publishedContent,
     pinnedAt: post.pinnedAt?.toISOString() ?? null,
+    pinSlot: post.pinSlot ?? null,
     publishedAt: post.publishedAt?.toISOString() ?? null,
     createdAt: post.createdAt.toISOString(),
     updatedAt: post.updatedAt.toISOString(),
     logicalPath: post.entry.logicalPath
   };
+}
+
+function sortPublishedPosts<
+  T extends {
+    pinSlot: number | null;
+    publishedAt: Date | null;
+    createdAt: Date;
+  }
+>(posts: T[]) {
+  return [...posts].sort((left, right) => {
+    const leftPinned = left.pinSlot !== null;
+    const rightPinned = right.pinSlot !== null;
+
+    if (leftPinned && rightPinned) {
+      if (left.pinSlot !== right.pinSlot) {
+        return (left.pinSlot ?? 999) - (right.pinSlot ?? 999);
+      }
+    } else if (leftPinned !== rightPinned) {
+      return leftPinned ? -1 : 1;
+    }
+
+    const leftPublished = left.publishedAt?.getTime() ?? left.createdAt.getTime();
+    const rightPublished = right.publishedAt?.getTime() ?? right.createdAt.getTime();
+
+    return rightPublished - leftPublished;
+  });
 }
 
 export const blogService = {
@@ -300,6 +329,7 @@ export const blogService = {
         data: {
           status: "unpublished",
           pinnedAt: null,
+          pinSlot: null,
           publishedAt: null
         }
       });
@@ -326,18 +356,13 @@ export const blogService = {
           }
         }
       },
-      orderBy: [
-        {
-          pinnedAt: "desc"
-        },
-        {
-          publishedAt: "desc"
-        }
-      ]
+      orderBy: {
+        publishedAt: "desc"
+      }
     });
 
     return {
-      items: posts.map(serializeListPost)
+      items: sortPublishedPosts(posts).map(serializeListPost)
     };
   },
 
@@ -400,19 +425,14 @@ export const blogService = {
           }
         }
       },
-      orderBy: [
-        {
-          pinnedAt: "desc"
-        },
-        {
-          publishedAt: "desc"
-        }
-      ]
+      orderBy: {
+        publishedAt: "desc"
+      }
     });
 
     return {
       logicalPath: normalizedPath,
-      items: posts.map(serializeListPost)
+      items: sortPublishedPosts(posts).map(serializeListPost)
     };
   },
 
@@ -431,7 +451,7 @@ export const blogService = {
     return serializeBlogPost(post);
   },
 
-  async pinEntry(userId: string, entryId: string) {
+  async pinEntry(userId: string, entryId: string, pinSlot: number) {
     const entry = await prisma.entry.findFirst({
       where: {
         id: entryId,
@@ -450,13 +470,38 @@ export const blogService = {
       throw new ApiError("Only published blog posts can be pinned", 400);
     }
 
-    const post = await prisma.blogPost.update({
-      where: {
-        entryId: entry.id
-      },
-      data: {
-        pinnedAt: new Date()
-      }
+    const now = new Date();
+
+    const post = await prisma.$transaction(async (tx) => {
+      await tx.blogPost.updateMany({
+        where: {
+          status: "published",
+          pinSlot,
+          NOT: {
+            entryId: entry.id
+          }
+        },
+        data: {
+          pinSlot: null,
+          pinnedAt: null
+        }
+      });
+
+      await tx.blogPost.update({
+        where: {
+          entryId: entry.id
+        },
+        data: {
+          pinnedAt: now,
+          pinSlot
+        }
+      });
+
+      return tx.blogPost.findUniqueOrThrow({
+        where: {
+          entryId: entry.id
+        }
+      });
     });
 
     return serializeBlogPost(post);
@@ -486,7 +531,8 @@ export const blogService = {
         entryId: entry.id
       },
       data: {
-        pinnedAt: null
+        pinnedAt: null,
+        pinSlot: null
       }
     });
 

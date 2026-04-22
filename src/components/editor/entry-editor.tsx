@@ -27,6 +27,7 @@ type EntryCard = {
     description: string | null;
     status: string;
     pinnedAt: string | null;
+    pinSlot: number | null;
     publishedAt: string | null;
   } | null;
   updatedAt: string;
@@ -66,6 +67,7 @@ type PublishDraftState = {
   title: string;
   description: string;
   publishMode: string;
+  pinSlot: string;
 };
 
 const initialMarkdown = `# Untitled note
@@ -124,7 +126,8 @@ function toPublishDraft(entry: EntryCard | null): PublishDraftState {
       slug: "",
       title: "",
       description: "",
-      publishMode: "notes_only"
+      publishMode: "notes_only",
+      pinSlot: ""
     };
   }
 
@@ -132,7 +135,8 @@ function toPublishDraft(entry: EntryCard | null): PublishDraftState {
     slug: entry.blogPost?.slug ?? createSlug(entry.title),
     title: entry.blogPost?.title ?? entry.title,
     description: entry.blogPost?.description ?? entry.excerpt ?? "",
-    publishMode: entry.publishMode === "none" ? "notes_only" : entry.publishMode
+    publishMode: entry.publishMode === "none" ? "notes_only" : entry.publishMode,
+    pinSlot: entry.blogPost?.pinSlot ? String(entry.blogPost.pinSlot) : ""
   };
 }
 
@@ -428,6 +432,7 @@ export function EntryEditor({ initialEntries, initialNavigation }: EntryEditorPr
           description: string | null;
           status: string;
           pinnedAt: string | null;
+          pinSlot: number | null;
           publishedAt: string | null;
         };
         error?: { message?: string };
@@ -451,6 +456,7 @@ export function EntryEditor({ initialEntries, initialNavigation }: EntryEditorPr
                   description: payload.data!.description,
                   status: payload.data!.status,
                   pinnedAt: payload.data!.pinnedAt,
+                  pinSlot: payload.data!.pinSlot,
                   publishedAt: payload.data!.publishedAt
                 }
               }
@@ -503,6 +509,7 @@ export function EntryEditor({ initialEntries, initialNavigation }: EntryEditorPr
                   ...entry.blogPost,
                   status: "unpublished",
                   pinnedAt: null,
+                  pinSlot: null,
                   publishedAt: null
                 }
               }
@@ -522,6 +529,14 @@ export function EntryEditor({ initialEntries, initialNavigation }: EntryEditorPr
       return;
     }
 
+    const slot = Number.parseInt(publishDraft.pinSlot, 10);
+
+    if (!Number.isInteger(slot) || slot < 1 || slot > 12) {
+      setError("Pin slot must be a number from 1 to 12.");
+      setStatus("");
+      return;
+    }
+
     setIsPinning(true);
     setError("");
     setStatus("");
@@ -533,7 +548,8 @@ export function EntryEditor({ initialEntries, initialNavigation }: EntryEditorPr
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          entryId: selectedEntry.id
+          entryId: selectedEntry.id,
+          pinSlot: slot
         })
       });
 
@@ -546,6 +562,7 @@ export function EntryEditor({ initialEntries, initialNavigation }: EntryEditorPr
           description: string | null;
           status: string;
           pinnedAt: string | null;
+          pinSlot: number | null;
           publishedAt: string | null;
         };
         error?: { message?: string };
@@ -562,13 +579,18 @@ export function EntryEditor({ initialEntries, initialNavigation }: EntryEditorPr
                 ...entry,
                 blogPost: {
                   ...entry.blogPost,
-                  pinnedAt: payload.data!.pinnedAt
+                  pinnedAt: payload.data!.pinnedAt,
+                  pinSlot: payload.data!.pinSlot
                 }
               }
             : entry
         )
       );
-      setStatus("Blog post pinned to home.");
+      setPublishDraft((current) => ({
+        ...current,
+        pinSlot: String(slot)
+      }));
+      setStatus(`Blog post pinned to slot ${slot}.`);
     } catch (pinError) {
       setError(pinError instanceof Error ? pinError.message : "Unable to pin blog post.");
     } finally {
@@ -605,6 +627,7 @@ export function EntryEditor({ initialEntries, initialNavigation }: EntryEditorPr
           description: string | null;
           status: string;
           pinnedAt: string | null;
+          pinSlot: number | null;
           publishedAt: string | null;
         };
         error?: { message?: string };
@@ -621,12 +644,17 @@ export function EntryEditor({ initialEntries, initialNavigation }: EntryEditorPr
                 ...entry,
                 blogPost: {
                   ...entry.blogPost,
-                  pinnedAt: payload.data!.pinnedAt
+                  pinnedAt: payload.data!.pinnedAt,
+                  pinSlot: payload.data!.pinSlot
                 }
               }
             : entry
         )
       );
+      setPublishDraft((current) => ({
+        ...current,
+        pinSlot: ""
+      }));
       setStatus("Blog post removed from pinned section.");
     } catch (pinError) {
       setError(pinError instanceof Error ? pinError.message : "Unable to unpin blog post.");
@@ -854,10 +882,24 @@ export function EntryEditor({ initialEntries, initialNavigation }: EntryEditorPr
                     </select>
                   </label>
 
+                  <label className="label">
+                    Pin slot
+                    <input
+                      className="input"
+                      type="number"
+                      min={1}
+                      max={12}
+                      value={publishDraft.pinSlot}
+                      onChange={(event) => updatePublishDraft("pinSlot", event.target.value)}
+                      placeholder="1 = biggest, 12 = lowest pinned priority"
+                    />
+                  </label>
+
                   <div className="cms-publish-meta">
                     <span>Status: {selectedEntry.blogPost?.status ?? "draft"}</span>
                     <span>Visibility: {selectedEntry.visibility}</span>
                     <span>Pinned: {selectedEntry.blogPost?.pinnedAt ? "yes" : "no"}</span>
+                    <span>Slot: {selectedEntry.blogPost?.pinSlot ?? "-"}</span>
                   </div>
 
                   <div className="button-row">
@@ -875,15 +917,13 @@ export function EntryEditor({ initialEntries, initialNavigation }: EntryEditorPr
                         <button
                           className="button-secondary"
                           type="button"
-                          onClick={selectedEntry.blogPost.pinnedAt ? handleUnpin : handlePin}
+                          onClick={handlePin}
                           disabled={isPinning}
                         >
                           {isPinning
-                            ? selectedEntry.blogPost.pinnedAt
-                              ? "Unpinning..."
-                              : "Pinning..."
+                            ? "Saving slot..."
                             : selectedEntry.blogPost.pinnedAt
-                              ? "Unpin from home"
+                              ? "Update pin slot"
                               : "Pin on home"}
                         </button>
                         <a
@@ -897,11 +937,21 @@ export function EntryEditor({ initialEntries, initialNavigation }: EntryEditorPr
                         <button
                           className="button-danger"
                           type="button"
-                          onClick={handleUnpublish}
-                          disabled={isPublishing}
+                          onClick={selectedEntry.blogPost.pinnedAt ? handleUnpin : handleUnpublish}
+                          disabled={isPublishing || isPinning}
                         >
-                          Unpublish
+                          {selectedEntry.blogPost.pinnedAt ? "Unpin" : "Unpublish"}
                         </button>
+                        {selectedEntry.blogPost.pinnedAt ? (
+                          <button
+                            className="button-danger"
+                            type="button"
+                            onClick={handleUnpublish}
+                            disabled={isPublishing || isPinning}
+                          >
+                            Unpublish
+                          </button>
+                        ) : null}
                       </>
                     ) : null}
                   </div>

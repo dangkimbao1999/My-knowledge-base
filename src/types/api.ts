@@ -119,5 +119,10 @@ export const publicBlogChatSchema = z.object({
 });
 
 export const pinBlogEntrySchema = z.object({
+  entryId: z.string().uuid(),
+  pinSlot: z.number().int().min(1).max(12)
+});
+
+export const unpinBlogEntrySchema = z.object({
   entryId: z.string().uuid()
 });
