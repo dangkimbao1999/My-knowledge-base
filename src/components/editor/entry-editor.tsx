@@ -542,6 +542,55 @@ export function EntryEditor({ initialEntries, initialNavigation }: EntryEditorPr
     }
   }
 
+  async function handleDeletePost() {
+    if (!selectedEntry || !selectedEntry.blogPost) {
+      return;
+    }
+
+    setIsPublishing(true);
+    setError("");
+    setStatus("");
+
+    try {
+      const response = await fetch("/api/blog/delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          entryId: selectedEntry.id
+        })
+      });
+
+      const payload = (await response.json()) as {
+        success: boolean;
+        error?: { message?: string };
+      };
+
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error?.message || "Unable to delete blog post.");
+      }
+
+      setEntries((current) =>
+        current.map((entry) =>
+          entry.id === selectedEntry.id
+            ? {
+                ...entry,
+                visibility: "private",
+                publishMode: "none",
+                blogPost: null
+              }
+            : entry
+        )
+      );
+      setStatus("Blog post deleted.");
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "Unable to delete blog post.");
+    } finally {
+      setIsPublishing(false);
+    }
+  }
+
   async function handlePin() {
     if (!selectedEntry || selectedEntry.blogPost?.status !== "published") {
       return;
@@ -930,20 +979,22 @@ export function EntryEditor({ initialEntries, initialNavigation }: EntryEditorPr
                       {isPublishing ? "Publishing..." : "Publish to blog"}
                     </button>
 
-                    {selectedEntry.blogPost?.status === "published" ? (
+                    {selectedEntry.blogPost ? (
                       <>
-                        <button
-                          className="button-secondary"
-                          type="button"
-                          onClick={handlePin}
-                          disabled={isPinning}
-                        >
-                          {isPinning
-                            ? "Saving slot..."
-                            : selectedEntry.blogPost.pinnedAt
-                              ? "Update pin slot"
-                              : "Pin on home"}
-                        </button>
+                        {selectedEntry.blogPost.status === "published" ? (
+                          <button
+                            className="button-secondary"
+                            type="button"
+                            onClick={handlePin}
+                            disabled={isPinning}
+                          >
+                            {isPinning
+                              ? "Saving slot..."
+                              : selectedEntry.blogPost.pinnedAt
+                                ? "Update pin slot"
+                                : "Pin on home"}
+                          </button>
+                        ) : null}
                         <a
                           className="button-secondary"
                           href={`/blog/${selectedEntry.blogPost.slug}`}
@@ -955,19 +1006,29 @@ export function EntryEditor({ initialEntries, initialNavigation }: EntryEditorPr
                         <button
                           className="button-danger"
                           type="button"
-                          onClick={selectedEntry.blogPost.pinnedAt ? handleUnpin : handleUnpublish}
+                          onClick={
+                            selectedEntry.blogPost.status === "published"
+                              ? selectedEntry.blogPost.pinnedAt
+                                ? handleUnpin
+                                : handleUnpublish
+                              : handleDeletePost
+                          }
                           disabled={isPublishing || isPinning}
                         >
-                          {selectedEntry.blogPost.pinnedAt ? "Unpin" : "Unpublish"}
+                          {selectedEntry.blogPost.status === "published"
+                            ? selectedEntry.blogPost.pinnedAt
+                              ? "Unpin"
+                              : "Unpublish"
+                            : "Delete post"}
                         </button>
-                        {selectedEntry.blogPost.pinnedAt ? (
+                        {selectedEntry.blogPost.status === "published" ? (
                           <button
                             className="button-danger"
                             type="button"
-                            onClick={handleUnpublish}
+                            onClick={selectedEntry.blogPost.pinnedAt ? handleUnpublish : handleDeletePost}
                             disabled={isPublishing || isPinning}
                           >
-                            Unpublish
+                            {selectedEntry.blogPost.pinnedAt ? "Unpublish" : "Delete post"}
                           </button>
                         ) : null}
                       </>

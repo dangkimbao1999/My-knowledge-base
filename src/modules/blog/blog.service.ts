@@ -268,6 +268,50 @@ export const blogService = {
     return serializeBlogPost(post);
   },
 
+  async deletePost(userId: string, entryId: string) {
+    const entry = await prisma.entry.findFirst({
+      where: {
+        id: entryId,
+        ownerId: userId
+      },
+      include: {
+        blogPost: true
+      }
+    });
+
+    if (!entry) {
+      throw new ApiError("Entry not found", 404);
+    }
+
+    if (!entry.blogPost) {
+      throw new ApiError("Blog post not found", 404);
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.entry.update({
+        where: {
+          id: entry.id
+        },
+        data: {
+          visibility: "private",
+          publishMode: "none",
+          publishedAt: null
+        }
+      });
+
+      await tx.blogPost.delete({
+        where: {
+          entryId: entry.id
+        }
+      });
+    });
+
+    return {
+      entryId: entry.id,
+      deleted: true
+    };
+  },
+
   async listPosts() {
     const posts = await prisma.blogPost.findMany({
       where: {
