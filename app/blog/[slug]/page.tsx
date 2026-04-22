@@ -18,58 +18,24 @@ function formatTimestamp(value: string | null) {
 
 export default async function BlogDetailPage({ params }: BlogDetailPageProps) {
   const { slug } = await params;
-  const [post, posts] = await Promise.all([
-    blogService.getPublicPost(slug),
-    blogService.listPosts()
-  ]);
+  const [post, posts] = await Promise.all([blogService.getPublicPost(slug), blogService.listPosts()]);
 
   const relatedPosts = posts.items.filter((item) => item.slug !== slug).slice(0, 4);
-  const contentWordCount = post.publishedContent.trim()
-    ? post.publishedContent.trim().split(/\s+/).length
-    : 0;
+  const contentWordCount = post.publishedContent.trim() ? post.publishedContent.trim().split(/\s+/).length : 0;
 
   return (
-    <main className="blog-page">
-      <section className="blog-hero">
-        <div className="blog-kicker">journal node resolved</div>
-        <div>
-          <h1 className="blog-hero-title">
-            {post.title.split(" ").slice(0, 3).join(" ")}{" "}
-            <span className="blog-accent">
-              {post.title.split(" ").slice(3).join(" ") || "NODE"}
-            </span>
-          </h1>
-          <div className="blog-meta-stack" style={{ marginTop: 14 }}>
-            <div className="blog-meta-line">
-              <span>[SLUG]</span>
-              <span>{post.slug}</span>
-            </div>
-            <div className="blog-meta-line">
-              <span>[PUBLISHED_AT]</span>
-              <span>{formatTimestamp(post.publishedAt)}</span>
-            </div>
-            <div className="blog-meta-line">
-              <span>[WORD_COUNT]</span>
-              <span>{contentWordCount}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* <div className="blog-terminal-line">
-          <span className="blog-terminal-prompt">reader@kernel:~$</span> cat /public/journal/{post.slug}
-          <div className="blog-terminal-output">
-            &gt;&gt; PROJECTION_READY. SOURCE ENTRY MATERIALIZED FOR PUBLIC READ ACCESS.
-          </div>
-        </div> */}
+    <div className="blog-page">
+      <section className="blog-detail-hero">
+        <div className="blog-section-tag">Public Node</div>
+        <h1 className="blog-detail-title">{post.title}</h1>
+        {post.description ? <p className="blog-detail-description">{post.description}</p> : null}
       </section>
 
-      <div className="blog-article-grid">
-        <article className="blog-article-card">
+      <div className="blog-detail-grid">
+        <article className="blog-detail-main">
           <Link className="blog-back-link" href="/blog">
-            [BACK]
+            Back To Public Log
           </Link>
-
-          {post.description ? <p className="blog-description">{post.description}</p> : null}
 
           <div
             className="preview blog-article-preview"
@@ -77,9 +43,9 @@ export default async function BlogDetailPage({ params }: BlogDetailPageProps) {
           />
         </article>
 
-        <aside className="blog-side-stack">
+        <aside className="blog-detail-side">
           <section className="blog-side-card">
-            <h2 className="blog-side-card-title">Node metadata</h2>
+            <h2 className="blog-side-card-title">Node Metadata</h2>
             <div className="blog-side-meta">
               <div className="blog-side-meta-line">
                 <span>slug</span>
@@ -100,24 +66,11 @@ export default async function BlogDetailPage({ params }: BlogDetailPageProps) {
             </div>
           </section>
 
-          <section className="blog-insight-card">
-            <div className="blog-insight-label">kernel note</div>
-            <p className="blog-insight-quote">
-              “The public node preserves signal, but the private workspace keeps the full thinking process.”
-            </p>
-            <div className="blog-insight-footer">
-              <span>SOURCE: SECOND_BRAIN_POLICY</span>
-              <Link className="blog-insight-button" href="/write">
-                OPEN_CMS
-              </Link>
-            </div>
-          </section>
-
           <section className="blog-side-card">
-            <h2 className="blog-side-card-title">Other logs</h2>
+            <h2 className="blog-side-card-title">Other Public Logs</h2>
             <div className="blog-other-posts">
               {relatedPosts.length === 0 ? (
-                <div className="blog-terminal-output">No additional public nodes yet.</div>
+                <div className="blog-empty-card">No additional public nodes yet.</div>
               ) : (
                 relatedPosts.map((item) => (
                   <Link className="blog-other-post" href={`/blog/${item.slug}`} key={item.id}>
@@ -130,6 +83,6 @@ export default async function BlogDetailPage({ params }: BlogDetailPageProps) {
           </section>
         </aside>
       </div>
-    </main>
+    </div>
   );
 }

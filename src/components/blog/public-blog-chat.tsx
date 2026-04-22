@@ -26,10 +26,22 @@ type PublicBlogChatResponse = {
 };
 
 const starterQuestions = [
-  "Bạn là ai và bạn đang public những chủ đề nào?",
-  "Tóm tắt nhanh những gì quan trọng nhất từ blog này.",
-  "Nếu tôi mới vào blog, tôi nên đọc bài nào trước?"
+  "Ban dang public nhung chu de nao?",
+  "Tom tat nhanh nhung gi quan trong nhat tu blog nay.",
+  "Neu toi moi vao day, toi nen doc bai nao truoc?"
 ];
+
+function stripTrailingSourcesSection(markdown: string) {
+  return markdown
+    .replace(/\n+#{0,3}\s*Public sources\s*[\s\S]*$/i, "")
+    .replace(/\n+Public sources\s*[\s\S]*$/i, "")
+    .trim();
+}
+
+function extractCitedSourceIndices(markdown: string) {
+  const matches = [...markdown.matchAll(/\[S(\d+)\]/g)];
+  return [...new Set(matches.map((match) => Number.parseInt(match[1] ?? "", 10)).filter(Number.isFinite))];
+}
 
 export function PublicBlogChat() {
   const [question, setQuestion] = useState(starterQuestions[0]);
@@ -73,37 +85,47 @@ export function PublicBlogChat() {
     }
   }
 
+  const cleanedAnswerMarkdown = result ? stripTrailingSourcesSection(result.answerMarkdown) : "";
+  const citedSourceIndices = result ? extractCitedSourceIndices(cleanedAnswerMarkdown) : [];
+  const relatedSources = result
+    ? (citedSourceIndices.length > 0
+        ? citedSourceIndices
+            .map((index) => ({ index, source: result.sources[index - 1] }))
+            .filter((item): item is { index: number; source: PublicBlogSource } => Boolean(item.source))
+        : result.sources.slice(0, 3).map((source, index) => ({ index: index + 1, source })))
+    : [];
+
   return (
     <section className="blog-chat-panel">
       <div className="blog-chat-header">
         <div>
-          <div className="blog-kicker">public interface</div>
-          <h2 className="blog-chat-title">ASK_THE_PUBLIC_KERNEL</h2>
-          <p className="blog-terminal-output">
-            Visitor có thể hỏi về anh dựa trên những gì anh đã public. Chatbot này chỉ đọc từ các public nodes.
+          <div className="blog-section-tag">Connect</div>
+          <h2 className="blog-chat-title">Ask me anything</h2>
+          <p className="blog-chat-copy">
+            Tôi share mọi thứ về tôi, hãy thử hỏi tôi vài câu xem :D
           </p>
         </div>
-        <div className="blog-chat-badge">PUBLIC_ONLY</div>
+        {/* <div className="blog-chat-badge">Public Only</div> */}
       </div>
 
       <label className="blog-chat-label">
-        VISITOR_QUERY
+        Visitor Query
         <textarea
           className="blog-chat-input"
           value={question}
           onChange={(event) => setQuestion(event.target.value)}
-          placeholder="Hỏi về những gì blog này đã public..."
+          placeholder="Hoi ve nhung gi blog nay da public..."
         />
       </label>
 
       <div className="blog-chat-actions">
         <button
-          className="blog-chat-button"
+          className="blog-primary-button"
           type="button"
           onClick={handleAsk}
           disabled={isLoading || !question.trim()}
         >
-          {isLoading ? "PROCESSING..." : "QUERY_PUBLIC_BRAIN"}
+          {isLoading ? "Processing..." : "Query Public Brain"}
         </button>
 
         <div className="blog-chat-suggestions">
@@ -134,28 +156,28 @@ export function PublicBlogChat() {
             <div
               className="preview blog-article-preview"
               style={{ minHeight: "auto" }}
-              dangerouslySetInnerHTML={{ __html: renderMarkdownPreview(result.answerMarkdown) }}
+              dangerouslySetInnerHTML={{ __html: renderMarkdownPreview(cleanedAnswerMarkdown) }}
             />
-          </article>
 
-          <aside className="blog-chat-sources">
-            <div className="blog-side-card">
-              <h3 className="blog-side-card-title">Public sources used</h3>
-              <div className="blog-other-posts">
-                {result.sources.map((source, index) => (
-                  <a className="blog-other-post" href={`/blog/${source.slug}`} key={source.id}>
-                    <h4 className="blog-other-post-title">
-                      S{index + 1} // {source.title}
-                    </h4>
-                    <div className="blog-terminal-output">{source.snippet}</div>
-                    <div className="blog-other-post-meta">
-                      {source.publishedAt ? new Date(source.publishedAt).toLocaleString("vi-VN") : "published"}
-                    </div>
-                  </a>
-                ))}
+            {relatedSources.length > 0 ? (
+              <div className="blog-side-card">
+                <h3 className="blog-side-card-title">Public sources</h3>
+                <div className="blog-other-posts">
+                  {relatedSources.map(({ index, source }) => (
+                    <a className="blog-other-post" href={`/blog/${source.slug}`} key={source.id}>
+                      <h4 className="blog-other-post-title">
+                        S{index} // {source.title}
+                      </h4>
+                      <div className="blog-recent-description">{source.snippet}</div>
+                      <div className="blog-other-post-meta">
+                        {source.publishedAt ? new Date(source.publishedAt).toLocaleString("vi-VN") : "published"}
+                      </div>
+                    </a>
+                  ))}
+                </div>
               </div>
-            </div>
-          </aside>
+            ) : null}
+          </article>
         </div>
       ) : null}
     </section>

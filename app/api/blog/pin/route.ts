@@ -7,6 +7,6 @@ export async function POST(request: Request) {
   return routeHandler(async () => {
     const auth = await requireAuth();
     const input = await parseJson(request, pinBlogEntrySchema);
-    return blogService.pinEntry(auth.userId, input.entryId);
+    return blogService.pinEntry(auth.userId, input.entryId, input.pinSlot);
   });
 }

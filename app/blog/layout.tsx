@@ -8,7 +8,7 @@ import "./theme.css";
 const blogHeadline = Space_Grotesk({
   subsets: ["latin", "vietnamese"],
   variable: "--blog-font-headline",
-  weight: ["400", "500", "600", "700"]
+  weight: ["500", "700"]
 });
 
 const blogBody = Inter({
@@ -30,72 +30,83 @@ export default async function BlogLayout({ children }: { children: ReactNode }) 
 
   return (
     <div className={`${blogHeadline.variable} ${blogBody.variable} ${blogMono.variable} blog-kernel`}>
-      <aside className="blog-sidebar">
-        <div className="blog-sidebar-brand">
-          <Link className="blog-sidebar-title" href="/blog">
-            SECOND_BRAIN
+      <nav className="blog-topbar">
+        <div className="blog-topbar-inner">
+          <Link className="blog-brand" href="/blog">
+            <span className="blog-brand-mark">B</span>
+            <span className="blog-brand-text">
+              DANGK <span>/ SECOND BRAIN</span>
+            </span>
           </Link>
-          <div className="blog-sidebar-status">STATUS: OPERATIONAL</div>
-        </div>
 
-        <BlogSidebarNav logicalPaths={logicalPaths} />
-
-        {/* <div className="blog-sidebar-cta">
-          <Link className="blog-sidebar-button" href="/write">
-            EXECUTE_NEW_NODE
-          </Link>
-        </div> */}
-
-        <div className="blog-sidebar-footer">
-          <div className="blog-sidebar-meta">SYSTEM_LOG</div>
-          <div className="blog-sidebar-meta">V_2.4.0</div>
-        </div>
-      </aside>
-
-      <div className="blog-main-shell">
-        <header className="blog-topbar">
-          <div className="blog-topbar-brand">BRAIN_KERNEL_v1.0</div>
           <div className="blog-topbar-nav">
-            <Link className="active" href="/blog">
-              journal
-            </Link>
-            <span>nodes</span>
-            <span>config</span>
+            <a href="#narrative">Narrative</a>
+            <a href="#knowledge">Knowledge</a>
+            <a href="#connect">Connect</a>
           </div>
-          <div className="blog-topbar-indicators">
-            <span>[term]</span>
-            <span>[mem]</span>
-            <span>[net]</span>
-          </div>
-        </header>
+        </div>
+      </nav>
 
-        {children}
+      <div className="blog-shell">
+        <aside className="blog-sidebar">
+          <div className="blog-sidebar-stack">
+            <div className="blog-sidebar-card">
+              <div className="blog-sidebar-kicker">Public knowledge map</div>
+              <h2 className="blog-sidebar-title">Logical Paths</h2>
+              <p className="blog-sidebar-copy">
+                Navigate the public layer of the wiki through curated paths and filtered topic clusters.
+              </p>
+              <BlogSidebarNav logicalPaths={logicalPaths} />
+            </div>
 
-        <footer className="blog-footer">
-          <div className="blog-footer-left">
-            <span className="blog-footer-dot" />
-            <span>KERNEL_CONNECTED</span>
-            <span>ENC: AES-256-GCM</span>
+            <div className="blog-hero-card blog-sidebar-chart">
+              <div className="blog-hero-card-head">
+                <span className="blog-mono-label">Architectural_Alignment_Chart</span>
+                <span className="blog-status-ok">STATUS: STABLE</span>
+              </div>
+
+              <div className="blog-metric-bars">
+                <div className="blog-metric-row">
+                  <span>Product</span>
+                  <div className="blog-metric-track">
+                    <div className="blog-metric-fill blue" style={{ width: "88%" }} />
+                  </div>
+                </div>
+                <div className="blog-metric-row">
+                  <span>Engineering</span>
+                  <div className="blog-metric-track">
+                    <div className="blog-metric-fill indigo" style={{ width: "100%" }} />
+                  </div>
+                </div>
+                <div className="blog-metric-row">
+                  <span>Finance</span>
+                  <div className="blog-metric-track">
+                    <div className="blog-metric-fill gold" style={{ width: "92%" }} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="blog-hero-quote">
+                "Một Product Owner giỏi trong Fintech không chỉ nói về cái gì, mà còn phải hiểu như thế
+                nào và tại sao ở mọi tầng kiến trúc."
+              </div>
+            </div>
           </div>
-          <div className="blog-footer-right">
-            <span>LN: 1042</span>
-            <span>COL: 12</span>
-            <span className="blog-footer-accent">UTF-8</span>
-          </div>
-        </footer>
+        </aside>
+
+        <main className="blog-main-shell">{children}</main>
       </div>
 
-      <nav className="blog-mobile-nav">
-        <Link className="active" href="/blog">
-          <span>JOURNAL</span>
-        </Link>
-        <span>NODES</span>
-        <Link className="blog-mobile-nav-add" href="/write">
-          +
-        </Link>
-        <span>ARCHIVE</span>
-        <span>CONFIG</span>
-      </nav>
+      <footer className="blog-footer">
+        <div className="blog-footer-inner">
+          <div className="blog-footer-links">
+            <span>Product Architecture</span>
+            <span>AI Systems</span>
+            <span>Knowledge Design</span>
+          </div>
+          <div className="blog-footer-meta">2026 // SECOND_BRAIN_BLUEPRINT</div>
+        </div>
+      </footer>
     </div>
   );
 }

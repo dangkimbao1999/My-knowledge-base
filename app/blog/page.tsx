@@ -12,9 +12,7 @@ function formatShortDate(value: string | null) {
   return new Date(value).toLocaleString("vi-VN", {
     year: "numeric",
     month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit"
+    day: "2-digit"
   });
 }
 
@@ -29,220 +27,294 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
   const activePath = resolvedSearchParams?.path?.trim() || null;
   const blogPosts = await blogService.listPostsByLogicalPath(activePath);
   const posts = blogPosts.items;
-  const pinnedPosts = posts.filter((post) => post.pinnedAt);
-  const recentPosts = posts.filter((post) => !post.pinnedAt);
-  const totalPosts = posts.length;
-  const totalWords = posts.reduce((sum, post) => {
-    const wordCount = post.publishedContent.trim()
-      ? post.publishedContent.trim().split(/\s+/).length
-      : 0;
-    return sum + wordCount;
-  }, 0);
-  const averageWords = totalPosts > 0 ? Math.round(totalWords / totalPosts) : 0;
+
+  const pinnedPosts = posts.filter((post) => post.pinSlot !== null);
+  const recentPosts = posts.filter((post) => post.pinSlot === null);
+
+  const primaryPinned = pinnedPosts[0] ?? null;
+  const secondaryPinned = pinnedPosts.slice(1, 4);
+  const tertiaryPinned = pinnedPosts.slice(4, 12);
+  const publicLogs = recentPosts.slice(0, 9);
 
   return (
-    <main className="blog-page">
-      <section className="blog-hero">
-        <div className="blog-kicker">Initialization sequence... complete</div>
-        <div>
+    <div className="blog-page">
+      <section className="blog-hero" id="connect">
+        <div className="blog-hero-copy">
+          <div className="blog-section-tag">Role: Product Architect</div>
           <h1 className="blog-hero-title">
-            PUBLIC <span className="blog-accent">JOURNAL</span>.
+            The Bridge Between <span className="blog-hero-accent">Logic</span> and{" "}
+            <span className="blog-hero-highlight">Value.</span>
           </h1>
-          {activePath ? (
-            <div className="blog-active-filter">
-              FILTER_PATH: <span>{activePath}</span>
-            </div>
-          ) : null}
+          <p className="blog-hero-description">
+            Tôi không chỉ xây dựng phần mềm; tôi thiết kế các giải pháp tài chính lai kết nối Web3, AI
+            và giá trị thực xã hội. Bằng cách giải quyết sự đứt gãy giữa Kinh doanh và Kỹ thuật, tôi
+            kiến tạo những sản phẩm có tính khả thi tuyệt đối.
+          </p>
         </div>
 
-        <div className="blog-hero-panels">
-          <section className="blog-hero-problem">
-            <p className="blog-hero-problem-title">Tôi giải quyết vấn đề gì?</p>
-            <p className="blog-hero-problem-copy">
-              Tôi giải quyết sự đứt gãy giữa <strong>Tầm nhìn Kinh doanh</strong> và{" "}
-              <strong>Thực thi Kỹ thuật</strong>. Tôi xây sản phẩm và hệ thống AI theo hướng không chỉ chạy
-              được, mà còn phải đúng hướng, rõ giá trị và có thể scale lâu dài.
-            </p>
-          </section>
-
-          <section className="blog-hero-bio">
-            <div className="blog-hero-bio-watermark">ROOT_ACCESS</div>
-            <p className="blog-hero-bio-label">// Short_Bio</p>
-            <p className="blog-hero-bio-copy">
-              "Xuất phát điểm là kỹ sư phần mềm, tôi chuyển dần sang vai trò xây sản phẩm và hệ thống tri
-              thức vì nhận ra: code chỉ là công cụ, còn cấu trúc sản phẩm và chất lượng quyết định mới là
-              thứ tạo ra đòn bẩy thật sự."
-            </p>
-          </section>
+        <div className="blog-hero-chat">
+          <PublicBlogChat />
         </div>
       </section>
 
-      {/* <section className="blog-quick-actions">
-        <Link className="blog-action-card" href="/write">
-          <span>[NEW_ENTRY]</span>
-          <strong>Open CMS workspace</strong>
-        </Link>
-        <Link className="blog-action-card" href="/write">
-          <span>[PUBLISH_NODE]</span>
-          <strong>Prepare a new public projection</strong>
-        </Link>
-        <Link className="blog-action-card" href="/write">
-          <span>[QUERY_ALL]</span>
-          <strong>Inspect internal wiki and knowledge graph</strong>
-        </Link>
-        <Link className="blog-action-card" href="/blog">
-          <span>[REFRESH_FEED]</span>
-          <strong>Reload public journal dashboard</strong>
-        </Link>
-      </section> */}
-
       {activePath ? (
         <section className="blog-filter-banner">
-          <div className="blog-filter-copy">
-            <span className="blog-kicker">path filter active</span>
-            <strong>Showing only public posts from `{activePath}`</strong>
+          <div>
+            <div className="blog-section-tag">Filter Active</div>
+            <strong className="blog-filter-text">Showing only public posts from `{activePath}`</strong>
           </div>
           <Link className="blog-filter-clear" href="/blog">
-            CLEAR_FILTER
+            Clear Filter
           </Link>
         </section>
       ) : null}
 
       {pinnedPosts.length > 0 ? (
         <section className="blog-pinned-section">
-          <div className="blog-section-heading">
-            <h2 className="blog-section-title">Pinned nodes</h2>
-            <span className="blog-section-caption">HOME_SIGNAL: {String(pinnedPosts.length).padStart(2, "0")}</span>
+          <div className="blog-section-header">
+            <div>
+              <div className="blog-section-tag">Pinned Layer</div>
+              <h2 className="blog-section-title">Signals I want visitors to see first</h2>
+            </div>
+            <span className="blog-section-note">HOME_SIGNAL: {String(pinnedPosts.length).padStart(2, "0")}</span>
           </div>
 
-          <div className="blog-pinned-grid">
-            {pinnedPosts.map((post) => (
-              <Link className="blog-pinned-card" href={`/blog/${post.slug}`} key={post.id}>
-                <div className="blog-pinned-label">Pinned</div>
-                <h3 className="blog-pinned-title">{post.title}</h3>
-                {post.description ? (
-                  <p className="blog-pinned-description">{post.description}</p>
-                ) : (
-                  <p className="blog-pinned-description">No excerpt available yet.</p>
-                )}
-                <div className="blog-pinned-path">{post.logicalPath ?? "uncategorized"}</div>
-              </Link>
-            ))}
+          <div className="blog-pinned-layout">
+            <div className="blog-pinned-column blog-pinned-column-featured">
+              {primaryPinned ? (
+                <Link className="blog-pinned-feature" href={`/blog/${primaryPinned.slug}`}>
+                  <div className="blog-pinned-feature-frame">
+                    <div className="blog-pinned-pill">Highlight</div>
+                    <div className="blog-pinned-feature-path">{primaryPinned.logicalPath ?? "uncategorized"}</div>
+                  </div>
+                  <div className="blog-pinned-feature-body">
+                    <h3 className="blog-pinned-feature-title">{primaryPinned.title}</h3>
+                    <p className="blog-pinned-feature-description">
+                      {primaryPinned.description || "No excerpt available yet."}
+                    </p>
+                    <div className="blog-pinned-feature-meta">{formatShortDate(primaryPinned.publishedAt)}</div>
+                  </div>
+                </Link>
+              ) : null}
+            </div>
+
+            <div className="blog-pinned-column blog-pinned-column-secondary">
+              {secondaryPinned.length > 0 ? (
+                secondaryPinned.map((post) => (
+                  <Link className="blog-pinned-secondary-card" href={`/blog/${post.slug}`} key={post.id}>
+                    <div className="blog-pinned-secondary-media">
+                      <div className="blog-pinned-pill subtle">Pinned</div>
+                      <span>{post.logicalPath ?? "uncategorized"}</span>
+                    </div>
+                    <div className="blog-pinned-secondary-body">
+                      <h3 className="blog-pinned-secondary-title">{post.title}</h3>
+                      <p className="blog-pinned-secondary-description">
+                        {post.description || "No excerpt available yet."}
+                      </p>
+                      <div className="blog-pinned-secondary-meta">{formatShortDate(post.publishedAt)}</div>
+                    </div>
+                  </Link>
+                ))
+              ) : (
+                <div className="blog-empty-card">Pin a few more posts to populate the secondary layer.</div>
+              )}
+            </div>
+
+            <div className="blog-pinned-column blog-pinned-column-tertiary">
+              {tertiaryPinned.length > 0 ? (
+                tertiaryPinned.map((post) => (
+                  <Link className="blog-pinned-tertiary-item" href={`/blog/${post.slug}`} key={post.id}>
+                    <div className="blog-pinned-tertiary-copy">
+                      <h3 className="blog-pinned-tertiary-title">{post.title}</h3>
+                      <p className="blog-pinned-tertiary-meta">
+                        {post.logicalPath ?? "uncategorized"} — {formatShortDate(post.publishedAt)}
+                      </p>
+                    </div>
+                    <div className="blog-pinned-tertiary-thumb" aria-hidden="true">
+                      {post.title.slice(0, 2).toUpperCase()}
+                    </div>
+                  </Link>
+                ))
+              ) : (
+                <div className="blog-empty-card">Lower-priority pinned items will appear here.</div>
+              )}
+            </div>
           </div>
         </section>
       ) : null}
 
-      <PublicBlogChat />
-
-      <div className="blog-grid">
-        <section className="blog-section">
-          <div className="blog-section-heading">
-            <h2 className="blog-section-title">Recent entries</h2>
-            <span className="blog-section-caption">
-              LIMIT: {String(Math.min(5, recentPosts.length)).padStart(2, "0")}_SHOWN
-            </span>
+      <section className="blog-logs-section">
+        <div className="blog-section-header">
+          <div>
+            <div className="blog-section-tag">Public Logs</div>
+            <h2 className="blog-section-title">Latest published entries</h2>
           </div>
+          <span className="blog-section-note">
+            LIMIT: {String(publicLogs.length).padStart(2, "0")}_VISIBLE
+          </span>
+        </div>
 
-          <div className="blog-entry-list">
-            {recentPosts.length === 0 ? (
-              <div className="blog-terminal-line">
-                <span className="blog-terminal-prompt">system@brain:~$</span> ls /public/journal
-                <div className="blog-terminal-output">
-                  &gt;&gt; {pinnedPosts.length > 0 ? "ONLY_PINNED_POSTS_VISIBLE" : "NO_PUBLISHED_POSTS_FOUND"}
-                </div>
-              </div>
-            ) : (
-              recentPosts.slice(0, 5).map((post, index) => (
-                <Link className="blog-entry-row" href={`/blog/${post.slug}`} key={post.id}>
-                  <div className="blog-entry-index">{String(index + 1).padStart(2, "0")}</div>
-                  <div className="blog-entry-body">
-                    <div className="blog-entry-content">
-                      <h3 className="blog-entry-title">{post.title}</h3>
-                      <div className="blog-entry-tags">
-                        <span className="blog-entry-chip">PUBLIC_NODE</span>
-                        <span className="blog-entry-hash">#{post.slug}</span>
-                        {post.logicalPath ? <span className="blog-entry-path">{post.logicalPath}</span> : null}
-                      </div>
-                      {post.description ? (
-                        <div className="blog-terminal-output">{post.description}</div>
-                      ) : null}
-                    </div>
-                    <div className="blog-entry-date">{formatShortDate(post.publishedAt)}</div>
+        {publicLogs.length === 0 ? (
+          <div className="blog-empty-card">
+            {pinnedPosts.length > 0 ? "Only pinned posts are visible right now." : "No published posts yet."}
+          </div>
+        ) : (
+          <div className="blog-logs-grid">
+            {publicLogs.map((post, index) => (
+              <Link className="blog-log-card" href={`/blog/${post.slug}`} key={post.id}>
+                <div className="blog-log-index">{String(index + 1).padStart(2, "0")}</div>
+                <div className="blog-log-body">
+                  <div className="blog-log-tags">
+                    <span className="blog-tag">PUBLIC_NODE</span>
+                    {post.logicalPath ? <span className="blog-tag blog-tag-outline">{post.logicalPath}</span> : null}
                   </div>
-                </Link>
-              ))
-            )}
-          </div>
-
-          {posts.length > 0 ? (
-            <Link className="blog-link-inline" href={`/blog/${posts[0].slug}`}>
-              [OPEN_LATEST_LOG]
-            </Link>
-          ) : null}
-        </section>
-
-        <aside className="blog-side-stack">
-          <section className="blog-insight-card">
-            <div className="blog-insight-label">RESURFACED_INSIGHT_ALERT</div>
-            <p className="blog-insight-quote">
-              “A public blog post is not the raw note itself. It is a compiled projection of the note, shaped for sharing.”
-            </p>
-            <div className="blog-insight-footer">
-              <span>SOURCE: BLOG_PROJECTION_LAYER</span>
-              <Link className="blog-insight-button" href="/write">
-                RECALL
+                  <h3 className="blog-log-title">{post.title}</h3>
+                  {post.description ? <p className="blog-log-description">{post.description}</p> : null}
+                </div>
+                <div className="blog-log-date">{formatShortDate(post.publishedAt)}</div>
               </Link>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="blog-narrative" id="narrative">
+        <div className="blog-narrative-side">
+          <div className="blog-section-tag">Narrative Log</div>
+          <h2 className="blog-narrative-title">The Evolution Of A Product Architect</h2>
+          <p className="blog-narrative-description">
+            Phân tích hành trình từ kỹ sư phần mềm thuần túy đến người dẫn dắt sản phẩm tài chính phức
+            tạp.
+          </p>
+
+          <div className="blog-takeaways-card">
+            <h4 className="blog-takeaways-title">Key Takeaways</h4>
+            <ul className="blog-takeaways-list">
+              <li>Phân tích đa tầng để nhìn đúng bản chất vấn đề.</li>
+              <li>Storytelling là cách kết nối kỹ thuật với giá trị thị trường.</li>
+              <li>First principles giúp sản phẩm bền vững hơn khi scale.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div className="blog-timeline">
+          <article className="blog-timeline-item">
+            <div className="blog-timeline-dot">01</div>
+            <div className="blog-timeline-content">
+              <h3 className="blog-timeline-title">01. Setup: The Binary Foundation</h3>
+              <p className="blog-timeline-meta">Bằng kép CS (VGU & Frankfurt) | Netcompany | Startup Culture</p>
+              <p className="blog-timeline-copy">
+                Mọi PO xuất sắc đều cần một nền tảng vững chắc. Với tấm bằng kép loại giỏi từ Đức, tôi
+                bắt đầu sự nghiệp bằng việc xây dựng những hệ thống khắt khe nhất. Tôi hiểu từng byte dữ
+                liệu vận hành thế nào. Tuy nhiên, tôi sớm nhận ra: <strong>code chỉ là công cụ, sản phẩm
+                mới là giá trị cốt lõi của doanh nghiệp.</strong>
+              </p>
             </div>
-          </section>
+          </article>
 
-          <section className="blog-stats-card">
-            <h3 className="blog-stats-title">Kernel capacity</h3>
-
-            <div className="blog-stat-group">
-              <div className="blog-stat-line">
-                <div className="blog-stat-label">
-                  <span>PUBLIC_FEED</span>
-                  <span>{Math.min(100, totalPosts * 14)}%</span>
+          <article className="blog-timeline-item conflict">
+            <div className="blog-timeline-dot">02</div>
+            <div className="blog-timeline-content">
+              <h3 className="blog-timeline-title blog-timeline-title-conflict">
+                02. Conflict: The Audit & Strategic Pivot
+              </h3>
+              <p className="blog-timeline-meta blog-timeline-meta-conflict">Failed Interviews: Zalo & Qode</p>
+              <p className="blog-timeline-copy">
+                Thất bại không phải là dấu chấm hết, mà là một đợt audit năng lực. Việc không vượt qua
+                vòng tuyển dụng tại <strong>Zalo</strong> và <strong>Qode</strong> chỉ ra những bug lớn
+                trong tư duy của tôi lúc bấy giờ: quá tập trung vào giải pháp kỹ thuật mà quên mất câu
+                chuyện giá trị người dùng và thiếu sự sắc bén trong đàm phán stakeholder.
+              </p>
+              <div className="blog-failure-grid">
+                <div className="blog-failure-card">
+                  <strong>Audit Findings // Zalo</strong>
+                  <span>
+                    Thiếu cái nhìn bao quát về business ecosystem. Cần mở rộng tầm nhìn từ function sang
+                    market fit.
+                  </span>
                 </div>
-                <div className="blog-stat-track">
-                  <div className="blog-stat-fill green" style={{ width: `${Math.min(100, totalPosts * 14)}%` }} />
-                </div>
-              </div>
-
-              <div className="blog-stat-line">
-                <div className="blog-stat-label">
-                  <span>AVG_ENTRY_SIZE</span>
-                  <span>{Math.min(100, Math.round(averageWords / 12))}%</span>
-                </div>
-                <div className="blog-stat-track">
-                  <div className="blog-stat-fill red" style={{ width: `${Math.min(100, Math.round(averageWords / 12))}%` }} />
-                </div>
-              </div>
-
-              <div className="blog-stat-line">
-                <div className="blog-stat-label">
-                  <span>SIGNAL_DENSITY</span>
-                  <span>{posts.length > 0 ? 84 : 0}%</span>
-                </div>
-                <div className="blog-stat-track">
-                  <div className="blog-stat-fill yellow" style={{ width: `${posts.length > 0 ? 84 : 0}%` }} />
+                <div className="blog-failure-card">
+                  <strong>Audit Findings // Qode</strong>
+                  <span>
+                    Kỹ năng đàm phán chưa tối ưu cho các luồng ý kiến trái chiều. Cần rèn luyện
+                    storytelling chiến lược hơn.
+                  </span>
                 </div>
               </div>
             </div>
+          </article>
 
-            <div className="blog-metric-grid">
-              <div className="blog-metric-box">
-                <div className="blog-metric-value">{totalPosts}</div>
-                <div className="blog-metric-label">PUBLIC_NODES</div>
-              </div>
-              <div className="blog-metric-box">
-                <div className="blog-metric-value">{totalWords}</div>
-                <div className="blog-metric-label">TOTAL_WORDS</div>
-              </div>
+          <article className="blog-timeline-item resolution">
+            <div className="blog-timeline-dot">03</div>
+            <div className="blog-timeline-content">
+              <h3 className="blog-timeline-title">03. Resolution: The Awakening at U2U & SSID</h3>
+              <p className="blog-timeline-meta">Decentralized World | Virtual Fintech | Compliance</p>
+              <p className="blog-timeline-copy">
+                Sau khi debug chính mình, tôi tìm thấy điểm giao thoa phù hợp. Tôi không chỉ quản lý
+                backlog, tôi quản lý <strong>tầm nhìn sản phẩm</strong>. Tôi chuyển hóa các cơ chế tài
+                chính truyền thống sang thế giới virtual fintech và vẫn giữ được tính tuân thủ pháp lý
+                cao.
+              </p>
             </div>
-          </section>
-        </aside>
-      </div>
-    </main>
+          </article>
+        </div>
+      </section>
+
+      <section className="blog-expertise" id="knowledge">
+        <div className="blog-expertise-copy">
+          <div className="blog-section-tag">Expertise Matrix</div>
+          <h2 className="blog-expertise-title">Fine-Tuned for Modern Finance.</h2>
+
+          <div className="blog-expertise-list">
+            <div className="blog-expertise-item">
+              <h3>Web3 & Decentralized Ecosystem</h3>
+              <p>
+                Hiểu sâu về cơ chế đồng thuận, tokenomics và cách thế giới phi tập trung vận hành quyền sở
+                hữu dữ liệu.
+              </p>
+            </div>
+
+            <div className="blog-expertise-item">
+              <h3>Virtual Banking Architecture</h3>
+              <p>
+                Xây dựng cơ chế tài chính từ truyền thống sang tài sản số, đảm bảo thanh khoản và tính tuân
+                thủ.
+              </p>
+            </div>
+
+            <div className="blog-expertise-item">
+              <h3>Storytelling & Layered Analysis</h3>
+              <p>
+                Bóc tách vấn đề theo nhiều lớp và kể câu chuyện sản phẩm đủ rõ để kết nối business,
+                engineering và compliance.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="blog-expertise-quote">
+          <blockquote>
+            "Mọi giải pháp kỹ thuật vĩ đại đều vô nghĩa nếu PO không thể kể một câu chuyện đủ thuyết phục
+            để kết nối phần mềm với giá trị kinh doanh thực thụ."
+          </blockquote>
+          <p>Product Architect Creed</p>
+        </div>
+      </section>
+
+      <section className="blog-vision" id="vision">
+        <div className="blog-section-tag">The 2030 Vision</div>
+        <h2 className="blog-vision-title">
+          Architecting the Future of <span>Hybrid Finance.</span>
+        </h2>
+        <p className="blog-vision-copy">
+          Trong 5 năm tới, tôi muốn đứng ở điểm giao thoa giữa thế giới ảo và giá trị thật: xây dựng
+          những sản phẩm tài chính vừa dẫn đầu về công nghệ, vừa đủ bền vững để tạo tác động xã hội dài
+          hạn.
+        </p>
+        <a className="blog-primary-button" href="#connect">
+          Initiate Collaboration
+        </a>
+      </section>
+    </div>
   );
 }
