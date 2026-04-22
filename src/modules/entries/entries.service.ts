@@ -1,6 +1,7 @@
 import { ApiError } from "@/lib/api";
 import { extractWikiLinks, toPlainText } from "@/lib/markdown";
 import { prisma } from "@/lib/prisma";
+import { buildPublishedContent } from "@/modules/blog/published-content";
 import { refreshEntrySearchDocument } from "@/modules/entries/search-document";
 import type {
   ContentFormat,
@@ -667,6 +668,11 @@ export const entriesService = {
   async updateEntry(userId: string, entryId: string, input: UpdateEntryInput) {
     const currentEntry = await findOwnedEntry(userId, entryId);
     const currentTextSource = currentEntry.textSources[0] ?? null;
+    const nextTitle = input.title ?? currentEntry.title;
+    const nextExcerpt =
+      input.excerpt === undefined
+        ? currentEntry.excerpt
+        : input.excerpt;
     const nextContent = input.content ?? currentTextSource?.content ?? null;
     const nextContentFormat = input.contentFormat ?? currentTextSource?.contentFormat ?? null;
     const nextPlainText =
@@ -685,6 +691,7 @@ export const entriesService = {
       currentEntry.entryType === "book"
         ? "book"
         : inferEntryTypeFromLogicalPath(nextLogicalPath);
+    const nextPublishMode = input.publishMode ?? currentEntry.publishMode;
 
     const updated = await prisma.$transaction(async (tx) => {
       await tx.entry.update({
@@ -692,7 +699,7 @@ export const entriesService = {
           id: entryId
         },
         data: {
-          title: input.title ?? currentEntry.title,
+          title: nextTitle,
           excerpt:
             input.excerpt === undefined
               ? currentEntry.excerpt
@@ -701,7 +708,7 @@ export const entriesService = {
           logicalPath: nextLogicalPath,
           aliases: nextAliases,
           visibility: input.visibility ?? currentEntry.visibility,
-          publishMode: input.publishMode ?? currentEntry.publishMode,
+          publishMode: nextPublishMode,
           archivedAt:
             input.archivedAt === undefined
               ? currentEntry.archivedAt
@@ -731,6 +738,76 @@ export const entriesService = {
         }
 
         await syncLinks(tx, userId, entryId, nextContent, nextContentFormat);
+      }
+
+      if (currentEntry.blogPost?.status === "published") {
+        const publishedEntry = await tx.entry.findUniqueOrThrow({
+          where: {
+            id: entryId
+          },
+          include: {
+            textSources: {
+              where: {
+                sourceKind: "raw_text"
+              },
+              orderBy: {
+                version: "desc"
+              },
+              take: 1
+            },
+            notes: {
+              orderBy: {
+                createdAt: "asc"
+              }
+            },
+            aiSummaries: {
+              where: {
+                status: "active"
+              },
+              orderBy: {
+                version: "desc"
+              },
+              take: 1
+            },
+            blogPost: true
+          }
+        });
+
+        const latestPublishedTextSource = publishedEntry.textSources[0] ?? null;
+        const latestSummary = publishedEntry.aiSummaries[0] ?? null;
+        const notesMarkdown = publishedEntry.notes
+          .map((note) => {
+            const heading = note.title ?? note.chapterLabel ?? note.noteType;
+            return `## ${heading}\n\n${note.content}`;
+          })
+          .join("\n\n");
+        const nextPublicTitle =
+          currentEntry.blogPost.title === currentEntry.title
+            ? nextTitle
+            : currentEntry.blogPost.title;
+        const nextPublicDescription =
+          currentEntry.blogPost.description === currentEntry.excerpt
+            ? nextExcerpt
+            : currentEntry.blogPost.description;
+
+        await tx.blogPost.update({
+          where: {
+            entryId
+          },
+          data: {
+            title: nextPublicTitle,
+            description: nextPublicDescription,
+            publishedContent: buildPublishedContent({
+              entryType: publishedEntry.entryType,
+              title: nextPublicTitle,
+              excerpt: nextPublicDescription,
+              summaryMarkdown: latestSummary?.summaryMarkdown ?? null,
+              notesMarkdown: notesMarkdown || null,
+              markdown: latestPublishedTextSource?.content ?? null,
+              publishMode: nextPublishMode === "none" ? "notes_only" : nextPublishMode
+            })
+          }
+        });
       }
 
       await refreshResolvedLinksForOwner(tx, userId);

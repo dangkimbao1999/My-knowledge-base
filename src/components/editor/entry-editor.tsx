@@ -214,6 +214,72 @@ export function EntryEditor({ initialEntries, initialNavigation }: EntryEditorPr
     }));
   }
 
+  async function saveExistingEntry(entryId: string) {
+    const tags = draft.tags
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+    const aliases = draft.aliases
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    const updateResponse = await fetch(`/api/entries/${entryId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        title: draft.title,
+        excerpt: draft.excerpt || null,
+        logicalPath: draft.logicalPath || null,
+        aliases,
+        content: draft.content,
+        contentFormat: "markdown"
+      })
+    });
+
+    const updatePayload = (await updateResponse.json()) as {
+      success: boolean;
+      data?: EntryCard;
+      error?: { message?: string };
+    };
+
+    if (!updateResponse.ok || !updatePayload.success || !updatePayload.data) {
+      throw new Error(updatePayload.error?.message || "Unable to update entry.");
+    }
+
+    const tagResponse = await fetch(`/api/entries/${entryId}/settings/tags`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        tags
+      })
+    });
+
+    const tagPayload = (await tagResponse.json()) as {
+      success: boolean;
+      data?: EntryCard;
+      error?: { message?: string };
+    };
+
+    if (!tagResponse.ok || !tagPayload.success || !tagPayload.data) {
+      throw new Error(tagPayload.error?.message || "Unable to update tags.");
+    }
+
+    const savedEntry = tagPayload.data as EntryCard;
+
+    setEntries((current) =>
+      current.map((entry) => (entry.id === entryId ? savedEntry : entry))
+    );
+    setDraft(toDraft(savedEntry));
+    await refreshNavigation();
+
+    return savedEntry;
+  }
+
   function handleSelectEntry(entryId: string) {
     const entry = entries.find((item) => item.id === entryId);
 
@@ -253,68 +319,19 @@ export function EntryEditor({ initialEntries, initialNavigation }: EntryEditorPr
     setError("");
     setStatus("");
 
-    const tags = draft.tags
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
-    const aliases = draft.aliases
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
-
     try {
       if (selectedEntryId) {
-        const updateResponse = await fetch(`/api/entries/${selectedEntryId}`, {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            title: draft.title,
-            excerpt: draft.excerpt || null,
-            logicalPath: draft.logicalPath || null,
-            aliases,
-            content: draft.content,
-            contentFormat: "markdown"
-          })
-        });
-
-        const updatePayload = (await updateResponse.json()) as {
-          success: boolean;
-          data?: EntryCard;
-          error?: { message?: string };
-        };
-
-        if (!updateResponse.ok || !updatePayload.success || !updatePayload.data) {
-          throw new Error(updatePayload.error?.message || "Unable to update entry.");
-        }
-
-        const tagResponse = await fetch(`/api/entries/${selectedEntryId}/settings/tags`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            tags
-          })
-        });
-
-        const tagPayload = (await tagResponse.json()) as {
-          success: boolean;
-          data?: EntryCard;
-          error?: { message?: string };
-        };
-
-        if (!tagResponse.ok || !tagPayload.success || !tagPayload.data) {
-          throw new Error(tagPayload.error?.message || "Unable to update tags.");
-        }
-
-        setEntries((current) =>
-          current.map((entry) => (entry.id === selectedEntryId ? (tagPayload.data as EntryCard) : entry))
-        );
-        setDraft(toDraft(tagPayload.data));
+        await saveExistingEntry(selectedEntryId);
         setStatus("Entry updated.");
       } else {
+        const tags = draft.tags
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean);
+        const aliases = draft.aliases
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean);
         const createResponse = await fetch("/api/entries", {
           method: "POST",
           headers: {
@@ -347,9 +364,8 @@ export function EntryEditor({ initialEntries, initialNavigation }: EntryEditorPr
         setSelectedEntryId(createdEntry.id);
         setDraft(toDraft(createdEntry));
         setStatus("Entry created.");
+        await refreshNavigation();
       }
-
-      await refreshNavigation();
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Unable to save entry.");
     } finally {
@@ -409,13 +425,15 @@ export function EntryEditor({ initialEntries, initialNavigation }: EntryEditorPr
     setStatus("");
 
     try {
+      const savedEntry = await saveExistingEntry(selectedEntry.id);
+
       const response = await fetch("/api/blog/publish", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          entryId: selectedEntry.id,
+          entryId: savedEntry.id,
           slug: publishDraft.slug,
           title: publishDraft.title || undefined,
           description: publishDraft.description || undefined,
@@ -444,7 +462,7 @@ export function EntryEditor({ initialEntries, initialNavigation }: EntryEditorPr
 
       setEntries((current) =>
         current.map((entry) =>
-          entry.id === selectedEntry.id
+          entry.id === savedEntry.id
             ? {
                 ...entry,
                 visibility: "public",
@@ -907,7 +925,7 @@ export function EntryEditor({ initialEntries, initialNavigation }: EntryEditorPr
                       className="button"
                       type="button"
                       onClick={handlePublish}
-                      disabled={isPublishing || !publishDraft.slug.trim()}
+                      disabled={isPublishing || isSaving || !publishDraft.slug.trim()}
                     >
                       {isPublishing ? "Publishing..." : "Publish to blog"}
                     </button>
@@ -974,7 +992,7 @@ export function EntryEditor({ initialEntries, initialNavigation }: EntryEditorPr
               className="button"
               type="button"
               onClick={handleSave}
-              disabled={isSaving || !draft.title.trim() || !draft.content.trim()}
+              disabled={isSaving || isPublishing || !draft.title.trim() || !draft.content.trim()}
             >
               {isSaving ? "Saving..." : selectedEntry ? "Save changes" : "Create entry"}
             </button>
