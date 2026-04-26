@@ -392,8 +392,9 @@
   color: #ffffff;
 }
 
-.blog-primary-button:visited,
-.blog-primary-button:active,
+.blog-kernel a.blog-primary-button,
+.blog-kernel a.blog-primary-button:visited,
+.blog-kernel a.blog-primary-button:active,
 button.blog-primary-button,
 button.blog-primary-button:hover,
 button.blog-primary-button:disabled {

@@ -349,7 +349,7 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
           chính vừa dẫn đầu về công nghệ, vừa đủ bền vững để tạo tác động xã hội dài hạn.
         </p>
         <a className="blog-primary-button" href="https://www.linkedin.com/in/iambao/">
-          Initiate Collaboration
+          Liên hệ ngay
         </a>
       </section>
     </div>
