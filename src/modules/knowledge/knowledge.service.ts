@@ -1,63 +1,6 @@
 import { ApiError } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
-function serializeKnowledgeItem(item: {
-  id: string;
-  title: string;
-  content: string;
-  sourceReferences: unknown;
-  modelName: string;
-  promptVersion: string;
-  createdAt: Date;
-  updatedAt: Date;
-  entry: {
-    id: string;
-    title: string;
-    entryType: string;
-    logicalPath: string | null;
-    visibility: string;
-    blogPost?: {
-      slug: string;
-      status: string;
-    } | null;
-  };
-  sourceChunk: {
-    id: string;
-    chunkIndex: number;
-    content: string;
-    startOffset: number;
-    endOffset: number;
-  } | null;
-}) {
-  return {
-    id: item.id,
-    title: item.title,
-    content: item.content,
-    sourceReferences: item.sourceReferences,
-    modelName: item.modelName,
-    promptVersion: item.promptVersion,
-    createdAt: item.createdAt.toISOString(),
-    updatedAt: item.updatedAt.toISOString(),
-    entry: {
-      id: item.entry.id,
-      title: item.entry.title,
-      entryType: item.entry.entryType,
-      logicalPath: item.entry.logicalPath,
-      visibility: item.entry.visibility,
-      blogSlug: item.entry.blogPost?.status === "published" ? item.entry.blogPost.slug : null
-    },
-    evidence: item.sourceChunk
-      ? {
-          sourceChunkId: item.sourceChunk.id,
-          chunkIndex: item.sourceChunk.chunkIndex,
-          startOffset: item.sourceChunk.startOffset,
-          endOffset: item.sourceChunk.endOffset,
-          snippet: item.sourceChunk.content.slice(0, 400)
-        }
-      : null
-  };
-}
-
 function serializeClaim(item: {
   id: string;
   claimType: string;
@@ -154,56 +97,7 @@ function serializeEntityOverview(entity: {
 
 export const knowledgeService = {
   async listKnowledge(userId: string, topicSlug?: string) {
-    const [items, claims, topics, entities] = await Promise.all([
-      prisma.aIKnowledgeItem.findMany({
-        where: {
-          status: "active",
-          entry: {
-            ownerId: userId,
-            ...(topicSlug
-              ? {
-                  aiTopics: {
-                    some: {
-                      status: "active",
-                      slug: topicSlug
-                    }
-                  }
-                }
-              : {})
-          }
-        },
-        include: {
-          entry: {
-            select: {
-              id: true,
-              title: true,
-              entryType: true,
-              logicalPath: true,
-              visibility: true,
-              blogPost: {
-                select: {
-                  slug: true,
-                  status: true
-                }
-              }
-            }
-          },
-          sourceChunk: {
-            select: {
-              id: true,
-              chunkIndex: true,
-              content: true,
-              startOffset: true,
-              endOffset: true
-            }
-          }
-        },
-        orderBy: [
-          {
-            updatedAt: "desc"
-          }
-        ]
-      }),
+    const [claims, topics, entities] = await Promise.all([
       prisma.knowledgeClaim.findMany({
         where: {
           status: "active",
@@ -327,7 +221,6 @@ export const knowledgeService = {
           entryCount: topic._count.slug
         })
       ),
-      items: items.map(serializeKnowledgeItem),
       claims: claims.map(serializeClaim),
       entities: entities.map((entity) =>
         serializeEntityOverview({
@@ -367,23 +260,16 @@ export const knowledgeService = {
                 status: true
               }
             },
-            aiKnowledgeItems: {
-              where: {
-                status: "active"
-              },
-              select: {
-                id: true,
-                title: true
-              },
-              take: 8
-            },
             knowledgeClaims: {
               where: {
                 status: "active"
               },
               select: {
-                id: true
-              }
+                id: true,
+                claimType: true,
+                content: true
+              },
+              take: 8
             },
             outgoingRelations: {
               select: {
@@ -410,45 +296,7 @@ export const knowledgeService = {
     const canonicalTopic = topicRows[0];
     const entryIds = [...new Set(topicRows.map((row) => row.entry.id))];
 
-    const [knowledgeItems, claims, relatedTopics, entities] = await Promise.all([
-      prisma.aIKnowledgeItem.findMany({
-        where: {
-          status: "active",
-          entryId: {
-            in: entryIds
-          }
-        },
-        include: {
-          entry: {
-            select: {
-              id: true,
-              title: true,
-              entryType: true,
-              logicalPath: true,
-              visibility: true,
-              blogPost: {
-                select: {
-                  slug: true,
-                  status: true
-                }
-              }
-            }
-          },
-          sourceChunk: {
-            select: {
-              id: true,
-              chunkIndex: true,
-              content: true,
-              startOffset: true,
-              endOffset: true
-            }
-          }
-        },
-        orderBy: {
-          updatedAt: "desc"
-        },
-        take: 40
-      }),
+    const [claims, relatedTopics, entities] = await Promise.all([
       prisma.knowledgeClaim.findMany({
         where: {
           status: "active",
@@ -554,10 +402,11 @@ export const knowledgeService = {
       visibility: row.entry.visibility,
       updatedAt: row.entry.updatedAt.toISOString(),
       blogSlug: row.entry.blogPost?.status === "published" ? row.entry.blogPost.slug : null,
-      knowledgeCount: row.entry.aiKnowledgeItems.length,
       claimCount: row.entry.knowledgeClaims.length,
       relationCount: row.entry.outgoingRelations.length + row.entry.incomingRelations.length,
-      evidenceTitles: row.entry.aiKnowledgeItems.map((item) => item.title)
+      claimHighlights: row.entry.knowledgeClaims.map(
+        (item) => `${item.claimType}: ${item.content}`
+      )
     }));
 
     return {
@@ -566,12 +415,10 @@ export const knowledgeService = {
         slug: canonicalTopic.slug,
         topic: canonicalTopic.topic,
         entryCount: entryIds.length,
-        knowledgeCount: knowledgeItems.length,
         claimCount: claims.length,
         entityCount: entities.length
       },
       entries,
-      knowledgeItems: knowledgeItems.map(serializeKnowledgeItem),
       claims: claims.map(serializeClaim),
       entities: entities.map((entity) =>
         serializeEntityOverview({

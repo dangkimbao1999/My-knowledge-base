@@ -153,7 +153,6 @@ model Entry {
   notes                  EntryNote[]
   aiSummaries            AISummary[]
   aiTopics               AITopic[]
-  aiKnowledgeItems       AIKnowledgeItem[]
   knowledgeClaims        KnowledgeClaim[]
   outgoingLinks          EntryLink[]       @relation("SourceEntryLinks")
   incomingLinks          EntryLink[]       @relation("TargetEntryLinks")
@@ -205,7 +204,6 @@ model SourceChunk {
   updatedAt          DateTime         @updatedAt
   entry              Entry            @relation(fields: [entryId], references: [id], onDelete: Cascade)
   textSource         EntryTextSource  @relation(fields: [textSourceId], references: [id], onDelete: Cascade)
-  knowledgeItems     AIKnowledgeItem[]
   knowledgeClaims    KnowledgeClaim[]
 
   @@unique([textSourceId, version, chunkIndex])
@@ -302,28 +300,6 @@ model AITopic {
 
   @@index([entryId, version(sort: Desc)])
   @@index([slug])
-}
-
-model AIKnowledgeItem {
-  id                  String           @id @default(uuid())
-  entryId             String
-  version             Int              @default(1)
-  status              AIArtifactStatus @default(active)
-  title               String
-  content             String
-  sourceChunkId       String?
-  sourceReferences    Json?
-  sourceSnapshotHash  String
-  modelName           String
-  promptVersion       String
-  embedding           Json?
-  createdAt           DateTime         @default(now())
-  updatedAt           DateTime         @updatedAt
-  entry               Entry            @relation(fields: [entryId], references: [id], onDelete: Cascade)
-  sourceChunk         SourceChunk?     @relation(fields: [sourceChunkId], references: [id], onDelete: SetNull)
-
-  @@index([entryId, version(sort: Desc)])
-  @@index([sourceChunkId])
 }
 
 model KnowledgeClaim {

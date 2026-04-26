@@ -68,7 +68,7 @@ export default async function BlogLayout({ children }: { children: ReactNode }) 
               </a>
 
               <a className="blog-contact-phone" href="tel:+84 9333 59 290">
-                +84 000 000 000
+                +84 9333 59 290
               </a>
             </div>
           </div>

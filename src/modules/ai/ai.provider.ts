@@ -11,15 +11,6 @@ export type TopicOutput = {
   model: string;
 };
 
-export type KnowledgeOutput = {
-  items: Array<{
-    title: string;
-    content: string;
-    sourceQuote?: string;
-  }>;
-  model: string;
-};
-
 export type EmbeddingOutput = {
   vectors: number[][];
   model: string;
@@ -192,11 +183,6 @@ function parseJson<T>(text: string) {
 export interface AIProvider {
   summarize(input: { entryId: string; text: string; title: string }): Promise<SummaryOutput>;
   extractTopics(input: { entryId: string; text: string; title: string }): Promise<TopicOutput>;
-  extractKnowledge(input: {
-    entryId: string;
-    text: string;
-    title: string;
-  }): Promise<KnowledgeOutput>;
   extractClaims(input: {
     entryId: string;
     text: string;
@@ -241,42 +227,6 @@ export class OpenAIWikiProvider implements AIProvider {
 
     return {
       topics: [...new Set((result.data.topics ?? []).map((topic) => topic.trim()).filter(Boolean))],
-      model: result.model
-    };
-  }
-
-  async extractKnowledge(input: {
-    entryId: string;
-    text: string;
-    title: string;
-  }): Promise<KnowledgeOutput> {
-    const result = await callResponsesApi({
-      instructions:
-        "You extract durable knowledge items from a personal knowledge-base entry. " +
-        "Return valid JSON only with shape {\"items\":[{\"title\":\"...\",\"content\":\"...\",\"sourceQuote\":\"...\"}]}. " +
-        "Return 3 to 8 items. Keep each title short, each content specific, and sourceQuote brief.",
-      prompt:
-        `Title: ${input.title}\nEntry ID: ${input.entryId}\n\n` +
-        `Source text:\n${input.text.slice(0, 14000)}`,
-      temperature: 0.1,
-      parse: (text) =>
-        parseJson<{
-          items?: Array<{
-            title?: string;
-            content?: string;
-            sourceQuote?: string;
-          }>;
-        }>(text)
-    });
-
-    return {
-      items: (result.data.items ?? [])
-        .map((item) => ({
-          title: item.title?.trim() ?? "",
-          content: item.content?.trim() ?? "",
-          sourceQuote: item.sourceQuote?.trim() || undefined
-        }))
-        .filter((item) => item.title && item.content),
       model: result.model
     };
   }

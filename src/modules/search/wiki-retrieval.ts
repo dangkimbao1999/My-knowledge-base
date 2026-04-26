@@ -17,6 +17,28 @@ const sourceChunkQueryArgs = {
   include: {
     entry: {
       include: {
+        aiSummaries: {
+          where: {
+            status: "active"
+          },
+          orderBy: {
+            version: "desc"
+          },
+          select: {
+            summaryMarkdown: true
+          },
+          take: 1
+        },
+        aiTopics: {
+          where: {
+            status: "active"
+          },
+          select: {
+            topic: true,
+            slug: true
+          },
+          take: 8
+        },
         entryTags: {
           include: {
             tag: true
@@ -33,17 +55,6 @@ const sourceChunkQueryArgs = {
           }
         }
       }
-    },
-    knowledgeItems: {
-      where: {
-        status: "active"
-      },
-      select: {
-        id: true,
-        title: true,
-        content: true
-      },
-      take: 4
     },
     knowledgeClaims: {
       where: {
@@ -73,68 +84,43 @@ type SearchableChunk = Prisma.SourceChunkGetPayload<typeof sourceChunkQueryArgs>
 
 function buildKnowledgeClause(needle: string): Prisma.SourceChunkWhereInput {
   return {
-    OR: [
-      {
-        knowledgeItems: {
-          some: {
-            status: "active",
-            OR: [
-              {
-                title: {
-                  contains: needle,
-                  mode: "insensitive"
-                }
-              },
-              {
-                content: {
-                  contains: needle,
-                  mode: "insensitive"
-                }
-              }
-            ]
-          }
-        }
-      },
-      {
-        knowledgeClaims: {
-          some: {
-            status: "active",
-            OR: [
-              {
-                content: {
-                  contains: needle,
-                  mode: "insensitive"
-                }
-              },
-              {
-                claimEntities: {
-                  some: {
-                    entity: {
-                      is: {
-                        OR: [
-                          {
-                            name: {
-                              contains: needle,
-                              mode: "insensitive"
-                            }
-                          },
-                          {
-                            slug: {
-                              contains: needle,
-                              mode: "insensitive"
-                            }
-                          }
-                        ]
+    knowledgeClaims: {
+      some: {
+        status: "active",
+        OR: [
+          {
+            content: {
+              contains: needle,
+              mode: "insensitive"
+            }
+          },
+          {
+            claimEntities: {
+              some: {
+                entity: {
+                  is: {
+                    OR: [
+                      {
+                        name: {
+                          contains: needle,
+                          mode: "insensitive"
+                        }
+                      },
+                      {
+                        slug: {
+                          contains: needle,
+                          mode: "insensitive"
+                        }
                       }
-                    }
+                    ]
                   }
                 }
               }
-            ]
+            }
           }
-        }
+        ]
       }
-    ]
+    }
   };
 }
 
@@ -179,15 +165,16 @@ function scoreChunkLexically(chunk: SearchableChunk, rawQuery: string, tokens: s
   const logicalPath = (chunk.entry.logicalPath ?? "").toLowerCase();
   const aliases = chunk.entry.aliases.join(" ").toLowerCase();
   const tags = chunk.entry.entryTags.map((item) => item.tag.name).join(" ").toLowerCase();
+  const summaryText = (chunk.entry.aiSummaries[0]?.summaryMarkdown ?? "").toLowerCase();
+  const topicText = chunk.entry.aiTopics
+    .map((item) => `${item.topic} ${item.slug}`)
+    .join(" ")
+    .toLowerCase();
   const links = chunk.entry.outgoingLinks
     .map((link) => `${link.targetTitle} ${link.linkText ?? ""}`)
     .join(" ")
     .toLowerCase();
   const chunkText = chunk.content.toLowerCase();
-  const knowledgeText = chunk.knowledgeItems
-    .map((item) => `${item.title} ${item.content}`)
-    .join(" ")
-    .toLowerCase();
   const claimText = chunk.knowledgeClaims
     .map(
       (item) =>
@@ -209,12 +196,16 @@ function scoreChunkLexically(chunk: SearchableChunk, rawQuery: string, tokens: s
     score += 24;
   }
 
-  if (knowledgeText.includes(normalizedQuery)) {
-    score += 18;
-  }
-
   if (claimText.includes(normalizedQuery)) {
     score += 20;
+  }
+
+  if (summaryText.includes(normalizedQuery)) {
+    score += 14;
+  }
+
+  if (topicText.includes(normalizedQuery)) {
+    score += 12;
   }
 
   if (logicalPath.includes(normalizedQuery)) {
@@ -231,8 +222,9 @@ function scoreChunkLexically(chunk: SearchableChunk, rawQuery: string, tokens: s
 
   score += countMatches(title, tokens) * 8;
   score += Math.min(24, countMatches(chunkText, tokens) * 3);
-  score += Math.min(18, countMatches(knowledgeText, tokens) * 3);
   score += Math.min(20, countMatches(claimText, tokens) * 3);
+  score += Math.min(12, countMatches(summaryText, tokens) * 2);
+  score += Math.min(10, countMatches(topicText, tokens) * 2);
   score += countMatches(logicalPath, tokens) * 5;
   score += countMatches(aliases, tokens) * 4;
   score += countMatches(tags, tokens) * 4;
@@ -379,6 +371,8 @@ function toSource(
     excerpt: chunk.entry.excerpt,
     snippet,
     chunkText: chunk.content,
+    summary: chunk.entry.aiSummaries[0]?.summaryMarkdown ?? null,
+    topics: chunk.entry.aiTopics.map((item) => item.topic),
     tokenEstimate: chunk.tokenEstimate,
     tags: chunk.entry.entryTags.map((item) => item.tag.name),
     aliases: chunk.entry.aliases,
@@ -386,11 +380,6 @@ function toSource(
       targetTitle: link.targetTitle,
       linkText: link.linkText,
       targetEntryId: link.targetEntryId
-    })),
-    evidence: chunk.knowledgeItems.map((item) => ({
-      id: item.id,
-      title: item.title,
-      content: item.content
     })),
     claims: chunk.knowledgeClaims.map((item) => ({
       id: item.id,
@@ -471,7 +460,7 @@ export async function retrieveWikiSources(input: RetrieveWikiSourcesInput) {
     const hybridScore = combineScores({
       lexicalScore: item.lexicalScore,
       semanticScore: 0,
-      evidenceCount: item.chunk.knowledgeItems.length + item.chunk.knowledgeClaims.length
+      evidenceCount: item.chunk.knowledgeClaims.length
     });
 
     scored.set(item.chunk.id, {
@@ -501,7 +490,7 @@ export async function retrieveWikiSources(input: RetrieveWikiSourcesInput) {
       const hybridScore = combineScores({
         lexicalScore,
         semanticScore,
-        evidenceCount: chunk.knowledgeItems.length + chunk.knowledgeClaims.length
+        evidenceCount: chunk.knowledgeClaims.length
       });
 
       scored.set(chunk.id, {

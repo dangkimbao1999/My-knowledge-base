@@ -159,6 +159,7 @@ export function EntryEditor({ initialEntries, initialNavigation, initialSelected
   const [isDeleting, setIsDeleting] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [isPinning, setIsPinning] = useState(false);
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [publishDraft, setPublishDraft] = useState<PublishDraftState>(
     toPublishDraft(initialSelectedEntry)
   );
@@ -747,6 +748,62 @@ export function EntryEditor({ initialEntries, initialNavigation, initialSelected
     }
   }
 
+  async function handleGenerateAI() {
+    if (!selectedEntry) {
+      return;
+    }
+
+    setIsGeneratingAI(true);
+    setError("");
+    setStatus("");
+
+    try {
+      const savedEntry = await saveExistingEntry(selectedEntry.id);
+      const response = await fetch(`/api/entries/${savedEntry.id}/ai/reprocess`, {
+        method: "POST"
+      });
+
+      const payload = (await response.json()) as {
+        success: boolean;
+        data?: {
+          artifacts?: {
+            sourceChunks?: number;
+            topics?: number;
+            claims?: number;
+            relations?: number;
+          };
+          result?: {
+            skipped?: boolean;
+          };
+        };
+        error?: { message?: string };
+      };
+
+      if (!response.ok || !payload.success || !payload.data) {
+        throw new Error(payload.error?.message || "Unable to generate AI artifacts.");
+      }
+
+      const artifacts = payload.data.artifacts;
+
+      if (payload.data.result?.skipped) {
+        setStatus("AI artifacts are already up to date.");
+        return;
+      }
+
+      setStatus(
+        artifacts
+          ? `AI artifacts updated: ${artifacts.claims ?? 0} claims, ${artifacts.topics ?? 0} topics, ${artifacts.sourceChunks ?? 0} chunks.`
+          : "AI artifacts updated."
+      );
+    } catch (generateError) {
+      setError(
+        generateError instanceof Error ? generateError.message : "Unable to generate AI artifacts."
+      );
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  }
+
   function renderNode(node: NavigationNode, depth = 0) {
     const isExpanded = !node.path || expandedPaths.has(node.path);
 
@@ -1076,17 +1133,39 @@ export function EntryEditor({ initialEntries, initialNavigation, initialSelected
               className="button"
               type="button"
               onClick={handleSave}
-              disabled={isSaving || isPublishing || !draft.title.trim() || !draft.content.trim()}
+              disabled={
+                isSaving ||
+                isPublishing ||
+                isGeneratingAI ||
+                !draft.title.trim() ||
+                !draft.content.trim()
+              }
             >
               {isSaving ? "Saving..." : selectedEntry ? "Save changes" : "Create entry"}
             </button>
+            {selectedEntry ? (
+              <button
+                className="button-secondary"
+                type="button"
+                onClick={handleGenerateAI}
+                disabled={
+                  isSaving ||
+                  isPublishing ||
+                  isGeneratingAI ||
+                  !draft.title.trim() ||
+                  !draft.content.trim()
+                }
+              >
+                {isGeneratingAI ? "Generating AI..." : "Generate AI artifacts"}
+              </button>
+            ) : null}
             <button
               className="button-secondary"
               type="button"
               onClick={() =>
                 selectedEntry ? setDraft(toDraft(selectedEntry)) : setDraft(createEmptyDraft(draft.logicalPath))
               }
-              disabled={isSaving}
+              disabled={isSaving || isGeneratingAI}
             >
               Reset
             </button>

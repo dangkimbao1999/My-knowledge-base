@@ -108,11 +108,6 @@ async function findOwnedEntry(userId: string, entryId: string) {
         where: {
           status: "active"
         }
-      },
-      aiKnowledgeItems: {
-        where: {
-          status: "active"
-        }
       }
     }
   });
@@ -142,7 +137,7 @@ async function markEntryState(
 }
 
 async function collectArtifactCounts(entryId: string) {
-  const [chunkCount, summaryCount, topicCount, knowledgeCount, claimCount, relationCount] =
+  const [chunkCount, summaryCount, topicCount, claimCount, relationCount] =
     await Promise.all([
     prisma.sourceChunk.count({
       where: {
@@ -156,12 +151,6 @@ async function collectArtifactCounts(entryId: string) {
       }
     }),
     prisma.aITopic.count({
-      where: {
-        entryId,
-        status: "active"
-      }
-    }),
-    prisma.aIKnowledgeItem.count({
       where: {
         entryId,
         status: "active"
@@ -184,7 +173,6 @@ async function collectArtifactCounts(entryId: string) {
     sourceChunks: chunkCount,
     summaries: summaryCount,
     topics: topicCount,
-    knowledgeItems: knowledgeCount,
     claims: claimCount,
     relations: relationCount
   };
@@ -264,42 +252,6 @@ async function persistSourceChunks(
       tokenEstimate: true
     }
   });
-}
-
-async function extractKnowledgeFromChunks(input: {
-  entryId: string;
-  title: string;
-  chunks: SourceChunkDraft[];
-}) {
-  const ai = getAIProvider();
-  const knowledgeItems: Array<{
-    chunkIndex: number;
-    title: string;
-    content: string;
-    sourceQuote?: string;
-  }> = [];
-
-  for (const chunk of input.chunks) {
-    const knowledge = await ai.extractKnowledge({
-      entryId: input.entryId,
-      title: `${input.title} // chunk ${chunk.chunkIndex + 1}`,
-      text: chunk.content
-    });
-
-    for (const item of knowledge.items) {
-      knowledgeItems.push({
-        chunkIndex: chunk.chunkIndex,
-        title: item.title,
-        content: item.content,
-        sourceQuote: item.sourceQuote
-      });
-    }
-  }
-
-  return {
-    items: knowledgeItems,
-    model: env.LLM_MODEL
-  };
 }
 
 async function extractClaimsFromChunks(input: {
@@ -489,13 +441,6 @@ async function persistArtifacts(input: {
   summaryModel: string;
   topics: string[];
   topicsModel: string;
-  knowledgeItems: Array<{
-    chunkIndex: number;
-    title: string;
-    content: string;
-    sourceQuote?: string;
-  }>;
-  knowledgeModel: string;
   claims: Array<{
     chunkIndex: number;
     content: string;
@@ -550,16 +495,6 @@ async function persistArtifacts(input: {
       }
     });
 
-    await tx.aIKnowledgeItem.updateMany({
-      where: {
-        entryId: input.entryId,
-        status: "active"
-      },
-      data: {
-        status: "superseded"
-      }
-    });
-
     await tx.knowledgeClaim.updateMany({
       where: {
         entryId: input.entryId,
@@ -597,34 +532,6 @@ async function persistArtifacts(input: {
           modelName: input.topicsModel,
           promptVersion: PROMPT_VERSION
         }))
-      });
-    }
-
-    if (input.knowledgeItems.length > 0) {
-      await tx.aIKnowledgeItem.createMany({
-        data: input.knowledgeItems.map((item) => {
-          const sourceChunk = chunkIdByIndex.get(item.chunkIndex);
-
-          return {
-          entryId: input.entryId,
-          version: nextVersion,
-          status: "active",
-          title: item.title,
-          content: item.content,
-          sourceChunkId: sourceChunk?.id,
-          sourceReferences: item.sourceQuote
-            ? toNullableJsonValue({
-                quote: item.sourceQuote,
-                chunkIndex: item.chunkIndex,
-                startOffset: sourceChunk?.startOffset,
-                endOffset: sourceChunk?.endOffset
-              })
-            : undefined,
-          sourceSnapshotHash: snapshotHash,
-          modelName: input.knowledgeModel,
-          promptVersion: PROMPT_VERSION
-        };
-        })
       });
     }
 
@@ -749,7 +656,7 @@ async function runTextEntryPipeline(userId: string, entryId: string, options: Pr
   }
 
   const ai = getAIProvider();
-  const [summary, topics, knowledge, claims, embeddings] = await Promise.all([
+  const [summary, topics, claims, embeddings] = await Promise.all([
     ai.summarize({
       entryId: entry.id,
       title: entry.title,
@@ -759,11 +666,6 @@ async function runTextEntryPipeline(userId: string, entryId: string, options: Pr
       entryId: entry.id,
       title: entry.title,
       text: plainText
-    }),
-    extractKnowledgeFromChunks({
-      entryId: entry.id,
-      title: entry.title,
-      chunks
     }),
     extractClaimsFromChunks({
       entryId: entry.id,
@@ -786,8 +688,6 @@ async function runTextEntryPipeline(userId: string, entryId: string, options: Pr
     summaryModel: summary.model,
     topics: topics.topics,
     topicsModel: topics.model,
-    knowledgeItems: knowledge.items,
-    knowledgeModel: knowledge.model,
     claims: claims.items,
     claimsModel: claims.model,
     includeRelations: options.includeRelations ?? true,
@@ -804,7 +704,6 @@ async function runTextEntryPipeline(userId: string, entryId: string, options: Pr
     embeddedChunkCount: embeddings.items.length,
     summaryLength: summary.summaryMarkdown.length,
     topicCount: topics.topics.length,
-    knowledgeCount: knowledge.items.length,
     claimCount: claims.items.length,
     relationCount: persisted.relationCount
   };
