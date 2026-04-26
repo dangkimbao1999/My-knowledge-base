@@ -17,10 +17,14 @@ type WikiSource = {
   chunkText: string;
   tags: string[];
   aliases: string[];
-  evidence: Array<{
+  claims: Array<{
     id: string;
-    title: string;
+    claimType: string;
     content: string;
+    entities: Array<{
+      name: string;
+      slug: string;
+    }>;
   }>;
   blogSlug: string | null;
   updatedAt: string;
@@ -162,11 +166,11 @@ export function WikiQueryPanel() {
                   <h3>{source.title}</h3>
                   {source.excerpt ? <p className="muted-copy">{source.excerpt}</p> : null}
                   <p className="muted-copy">{source.snippet}</p>
-                  {source.evidence.length > 0 ? (
+                  {source.claims.length > 0 ? (
                     <div className="chip-row">
-                      {source.evidence.slice(0, 3).map((item) => (
+                      {source.claims.slice(0, 3).map((item) => (
                         <span className="chip" key={item.id}>
-                          {item.title}
+                          {item.claimType}
                         </span>
                       ))}
                     </div>

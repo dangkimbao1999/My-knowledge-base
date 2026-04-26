@@ -7,64 +7,6 @@ import { searchSchema } from "@/types/api";
 
 type UnifiedSearchInput = z.infer<typeof searchSchema>;
 
-function scoreKnowledgeItem(
-  item: Prisma.AIKnowledgeItemGetPayload<{
-    include: {
-      entry: {
-        select: {
-          id: true;
-          title: true;
-          entryType: true;
-          logicalPath: true;
-          visibility: true;
-        };
-      };
-      sourceChunk: {
-        select: {
-          id: true;
-          chunkIndex: true;
-          content: true;
-          startOffset: true;
-          endOffset: true;
-        };
-      };
-    };
-  }>,
-  rawQuery: string,
-  tokens: string[]
-) {
-  const title = item.title.toLowerCase();
-  const content = item.content.toLowerCase();
-  const chunkText = (item.sourceChunk?.content ?? "").toLowerCase();
-  const entryTitle = item.entry.title.toLowerCase();
-  const normalizedQuery = rawQuery.toLowerCase();
-
-  let score = 0;
-
-  if (title.includes(normalizedQuery)) {
-    score += 22;
-  }
-
-  if (content.includes(normalizedQuery)) {
-    score += 18;
-  }
-
-  if (chunkText.includes(normalizedQuery)) {
-    score += 14;
-  }
-
-  if (entryTitle.includes(normalizedQuery)) {
-    score += 10;
-  }
-
-  score += countMatches(title, tokens) * 7;
-  score += countMatches(content, tokens) * 4;
-  score += Math.min(12, countMatches(chunkText, tokens) * 2);
-  score += countMatches(entryTitle, tokens) * 3;
-
-  return score;
-}
-
 function scoreTopicLabel(
   item: {
     slug: string;
@@ -91,89 +33,6 @@ function scoreTopicLabel(
   score += countMatches(slug, tokens) * 4;
 
   return score;
-}
-
-async function retrieveKnowledgeResults(userId: string, query: string, limit: number) {
-  const tokens = tokenize(query);
-  const needles = [...new Set([query, ...tokens])];
-  const items = await prisma.aIKnowledgeItem.findMany({
-    where: {
-      status: "active",
-      entry: {
-        ownerId: userId,
-        archivedAt: null
-      },
-      OR: needles.flatMap((needle) => [
-        {
-          title: {
-            contains: needle,
-            mode: "insensitive" as const
-          }
-        },
-        {
-          content: {
-            contains: needle,
-            mode: "insensitive" as const
-          }
-        },
-        {
-          sourceChunk: {
-            is: {
-              content: {
-                contains: needle,
-                mode: "insensitive" as const
-              }
-            }
-          }
-        }
-      ])
-    },
-    include: {
-      entry: {
-        select: {
-          id: true,
-          title: true,
-          entryType: true,
-          logicalPath: true,
-          visibility: true
-        }
-      },
-      sourceChunk: {
-        select: {
-          id: true,
-          chunkIndex: true,
-          content: true,
-          startOffset: true,
-          endOffset: true
-        }
-      }
-    },
-    orderBy: {
-      updatedAt: "desc"
-    },
-    take: 60
-  });
-
-  return items
-    .map((item) => ({
-      id: item.id,
-      title: item.title,
-      content: item.content,
-      entry: item.entry,
-      sourceChunk: item.sourceChunk
-        ? {
-            id: item.sourceChunk.id,
-            chunkIndex: item.sourceChunk.chunkIndex,
-            startOffset: item.sourceChunk.startOffset,
-            endOffset: item.sourceChunk.endOffset,
-            snippet: buildSnippet(item.sourceChunk.content, tokens)
-          }
-        : null,
-      score: scoreKnowledgeItem(item, query, tokens)
-    }))
-    .filter((item) => item.score > 0)
-    .sort((left, right) => right.score - left.score)
-    .slice(0, limit);
 }
 
 async function retrieveClaimResults(userId: string, query: string, limit: number) {
@@ -439,7 +298,7 @@ async function retrieveTopicResults(userId: string, query: string, limit: number
 
 function buildEntryResults(
   chunks: Awaited<ReturnType<typeof retrieveWikiSources>>,
-  knowledgeItems: Awaited<ReturnType<typeof retrieveKnowledgeResults>>
+  claims: Awaited<ReturnType<typeof retrieveClaimResults>>
 ) {
   const byEntry = new Map<
     string,
@@ -455,7 +314,7 @@ function buildEntryResults(
       bestScore: number;
       matchingChunks: number;
       chunkSnippets: string[];
-      evidenceTitles: string[];
+      claimHighlights: string[];
       tags: string[];
     }
   >();
@@ -469,9 +328,13 @@ function buildEntryResults(
       if (existing.chunkSnippets.length < 3) {
         existing.chunkSnippets.push(chunk.snippet);
       }
-      for (const item of chunk.evidence) {
-        if (existing.evidenceTitles.length < 6 && !existing.evidenceTitles.includes(item.title)) {
-          existing.evidenceTitles.push(item.title);
+      for (const item of chunk.claims) {
+        const highlight = `${item.claimType}: ${item.content}`;
+        if (
+          existing.claimHighlights.length < 6 &&
+          !existing.claimHighlights.includes(highlight)
+        ) {
+          existing.claimHighlights.push(highlight);
         }
       }
       continue;
@@ -489,13 +352,16 @@ function buildEntryResults(
       bestScore: chunk.score,
       matchingChunks: 1,
       chunkSnippets: [chunk.snippet],
-      evidenceTitles: chunk.evidence.map((item) => item.title).slice(0, 6),
+      claimHighlights: chunk.claims
+        .map((item) => `${item.claimType}: ${item.content}`)
+        .slice(0, 6),
       tags: chunk.tags
     });
   }
 
-  for (const item of knowledgeItems) {
+  for (const item of claims) {
     const existing = byEntry.get(item.entry.id);
+    const highlight = `${item.claimType}: ${item.content}`;
 
     if (!existing) {
       byEntry.set(item.entry.id, {
@@ -510,7 +376,7 @@ function buildEntryResults(
         bestScore: item.score,
         matchingChunks: item.sourceChunk ? 1 : 0,
         chunkSnippets: item.sourceChunk?.snippet ? [item.sourceChunk.snippet] : [],
-        evidenceTitles: [item.title],
+        claimHighlights: [highlight],
         tags: []
       });
       continue;
@@ -520,8 +386,8 @@ function buildEntryResults(
     if (item.sourceChunk?.snippet && existing.chunkSnippets.length < 3) {
       existing.chunkSnippets.push(item.sourceChunk.snippet);
     }
-    if (!existing.evidenceTitles.includes(item.title) && existing.evidenceTitles.length < 6) {
-      existing.evidenceTitles.push(item.title);
+    if (!existing.claimHighlights.includes(highlight) && existing.claimHighlights.length < 6) {
+      existing.claimHighlights.push(highlight);
     }
   }
 
@@ -537,13 +403,12 @@ export const searchService = {
       visibility: input.visibility,
       types: input.types
     });
-    const [knowledgeResults, claimResults, entityResults, topicResults] = await Promise.all([
-      retrieveKnowledgeResults(userId, input.q, Math.min(input.limit, 10)),
+    const [claimResults, entityResults, topicResults] = await Promise.all([
       retrieveClaimResults(userId, input.q, Math.min(input.limit, 10)),
       retrieveEntityResults(userId, input.q, Math.min(input.limit, 10)),
       retrieveTopicResults(userId, input.q, Math.min(input.limit, 10))
     ]);
-    const entryResults = buildEntryResults(chunkResults, knowledgeResults).slice(
+    const entryResults = buildEntryResults(chunkResults, claimResults).slice(
       0,
       Math.min(input.limit, 12)
     );
@@ -559,14 +424,12 @@ export const searchService = {
       summary: {
         chunkMatches: chunkResults.length,
         entryMatches: entryResults.length,
-        knowledgeMatches: knowledgeResults.length,
         claimMatches: claimResults.length,
         entityMatches: entityResults.length,
         topicMatches: topicResults.length
       },
       results: chunkResults,
       entryResults,
-      knowledgeResults,
       claimResults,
       entityResults,
       topicResults

@@ -19,6 +19,17 @@ type PublicBlogSource = {
   sourceType: "published_chunk";
   chunkIndex: number;
   chunkText: string;
+  summary: string | null;
+  topics: string[];
+  claims: Array<{
+    id: string;
+    claimType: string;
+    content: string;
+    entities: Array<{
+      name: string;
+      slug: string;
+    }>;
+  }>;
 };
 
 type OpenAIResponsePayload = {
@@ -47,6 +58,26 @@ function scorePublishedChunk(
     description: string | null;
     publishedContent: string;
     publishedAt: Date | null;
+    entry: {
+      publishMode: string;
+      aiSummaries: Array<{
+        summaryMarkdown: string;
+      }>;
+      aiTopics: Array<{
+        topic: string;
+        slug: string;
+      }>;
+      knowledgeClaims: Array<{
+        claimType: string;
+        content: string;
+        claimEntities: Array<{
+          entity: {
+            name: string;
+            slug: string;
+          };
+        }>;
+      }>;
+    };
   },
   chunk: {
     chunkIndex: number;
@@ -59,6 +90,30 @@ function scorePublishedChunk(
   const description = (post.description ?? "").toLowerCase();
   const chunkText = chunk.content.toLowerCase();
   const slug = post.slug.toLowerCase();
+  const publishMode = post.entry.publishMode;
+  const summaryText =
+    publishMode === "summary_only" || publishMode === "summary_and_notes"
+      ? (post.entry.aiSummaries[0]?.summaryMarkdown ?? "").toLowerCase()
+      : "";
+  const topicText =
+    publishMode === "summary_only"
+      ? ""
+      : post.entry.aiTopics
+          .map((item) => `${item.topic} ${item.slug}`)
+          .join(" ")
+          .toLowerCase();
+  const claimText =
+    publishMode === "summary_only"
+      ? ""
+      : post.entry.knowledgeClaims
+          .map(
+            (item) =>
+              `${item.claimType} ${item.content} ${item.claimEntities
+                .map((claimEntity) => `${claimEntity.entity.name} ${claimEntity.entity.slug}`)
+                .join(" ")}`
+          )
+          .join(" ")
+          .toLowerCase();
   const normalizedQuestion = question.toLowerCase();
 
   let score = 0;
@@ -75,6 +130,18 @@ function scorePublishedChunk(
     score += 22;
   }
 
+  if (summaryText.includes(normalizedQuestion)) {
+    score += 14;
+  }
+
+  if (topicText.includes(normalizedQuestion)) {
+    score += 10;
+  }
+
+  if (claimText.includes(normalizedQuestion)) {
+    score += 14;
+  }
+
   if (slug.includes(normalizedQuestion)) {
     score += 10;
   }
@@ -82,6 +149,9 @@ function scorePublishedChunk(
   score += countMatches(title, tokens) * 8;
   score += countMatches(description, tokens) * 5;
   score += Math.min(24, countMatches(chunkText, tokens) * 3);
+  score += Math.min(12, countMatches(summaryText, tokens) * 2);
+  score += Math.min(10, countMatches(topicText, tokens) * 2);
+  score += Math.min(12, countMatches(claimText, tokens) * 2);
   score += countMatches(slug, tokens) * 4;
 
   return score;
@@ -102,7 +172,55 @@ async function retrievePublicSources(question: string, limit = 5) {
       title: true,
       description: true,
       publishedContent: true,
-      publishedAt: true
+      publishedAt: true,
+      entry: {
+        select: {
+          publishMode: true,
+          aiSummaries: {
+            where: {
+              status: "active"
+            },
+            orderBy: {
+              version: "desc"
+            },
+            select: {
+              summaryMarkdown: true
+            },
+            take: 1
+          },
+          aiTopics: {
+            where: {
+              status: "active"
+            },
+            select: {
+              topic: true,
+              slug: true
+            },
+            take: 8
+          },
+          knowledgeClaims: {
+            where: {
+              status: "active"
+            },
+            select: {
+              id: true,
+              claimType: true,
+              content: true,
+              claimEntities: {
+                select: {
+                  entity: {
+                    select: {
+                      name: true,
+                      slug: true
+                    }
+                  }
+                }
+              }
+            },
+            take: 8
+          }
+        }
+      }
     }
   });
 
@@ -121,7 +239,27 @@ async function retrievePublicSources(question: string, limit = 5) {
       chunkText: chunk.content,
       sourceType: "published_chunk" as const,
       score: scorePublishedChunk(post, chunk, question, tokens),
-      snippet: buildSnippet(chunk.content || post.description || post.title, tokens)
+      snippet: buildSnippet(chunk.content || post.description || post.title, tokens),
+      summary:
+        post.entry.publishMode === "summary_only" || post.entry.publishMode === "summary_and_notes"
+          ? post.entry.aiSummaries[0]?.summaryMarkdown ?? null
+          : null,
+      topics:
+        post.entry.publishMode === "summary_only"
+          ? []
+          : post.entry.aiTopics.map((item) => item.topic),
+      claims:
+        post.entry.publishMode === "summary_only"
+          ? []
+          : post.entry.knowledgeClaims.map((item) => ({
+              id: item.id,
+              claimType: item.claimType,
+              content: item.content,
+              entities: item.claimEntities.map((claimEntity) => ({
+                name: claimEntity.entity.name,
+                slug: claimEntity.entity.slug
+              }))
+            }))
     }))
   );
 
@@ -163,6 +301,20 @@ async function generatePublicBlogAnswer(question: string, sources: PublicBlogSou
         `chunkIndex: ${source.chunkIndex}`,
         `publishedAt: ${source.publishedAt ?? "-"}`,
         `description: ${source.description ?? "-"}`,
+        `topics: ${source.topics.join(", ") || "-"}`,
+        `summary: ${source.summary ? source.summary.slice(0, 1200) : "-"}`,
+        `claims: ${
+          source.claims
+            .map(
+              (item) =>
+                `${item.claimType}: ${item.content}${
+                  item.entities.length > 0
+                    ? ` [entities: ${item.entities.map((entity) => entity.name).join(", ")}]`
+                    : ""
+                }`
+            )
+            .join(" | ") || "-"
+        }`,
         `snippet: ${source.snippet || "-"}`,
         `published chunk: ${source.chunkText.slice(0, 2600)}`
       ].join("\n");
@@ -186,7 +338,9 @@ async function generatePublicBlogAnswer(question: string, sources: PublicBlogSou
               type: "input_text",
               text:
                 "You are the public-facing guide for a person's blog. " +
-                "Answer strictly from the provided published source chunks only. " +
+                "Answer strictly from the provided published source chunks and their public-safe supporting structure only. " +
+                "Treat published chunks as authoritative. Treat published summaries, topics, and claims as supporting context only. " +
+                "If any supporting structure conflicts with the published chunk, trust the chunk text. " +
                 "Never use private information, outside knowledge, or infer facts not supported by the public text. " +
                 "If the public material is insufficient, say that clearly. " +
                 "Respond in the same language as the visitor. " +

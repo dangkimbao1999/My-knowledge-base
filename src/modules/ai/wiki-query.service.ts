@@ -38,12 +38,11 @@ function buildSourceContext(sources: Awaited<ReturnType<typeof retrieveWikiSourc
         `chunkIndex: ${source.chunkIndex}`,
         `logicalPath: ${source.logicalPath ?? "-"}`,
         `tags: ${source.tags.join(", ") || "-"}`,
+        `topics: ${source.topics.join(", ") || "-"}`,
         `updatedAt: ${source.updatedAt}`,
         `excerpt: ${source.excerpt ?? "-"}`,
+        `summary: ${source.summary ? source.summary.slice(0, 1400) : "-"}`,
         `snippet: ${source.snippet || "-"}`,
-        `knowledge evidence: ${
-          source.evidence.map((item) => `${item.title}: ${item.content}`).join(" | ") || "-"
-        }`,
         `claims: ${
           source.claims
             .map(
@@ -95,8 +94,9 @@ async function generateWikiAnswer(query: string, sourceContext: string) {
             {
               type: "input_text",
               text:
-                "You answer questions only from the provided personal wiki source chunks and evidence. " +
-                "Treat source chunks as authoritative and extracted knowledge as supporting structure only. " +
+                "You answer questions only from the provided personal wiki source chunks and supporting structure. " +
+                "Treat source chunks as authoritative. Treat summaries, topics, and claims as supporting context only. " +
+                "If any supporting structure conflicts with the chunk text, trust the chunk text. " +
                 "Do not use outside knowledge. If the sources are insufficient, say so clearly. " +
                 "Respond in the same language as the user. Format the answer in Markdown. " +
                 "Cite supporting sources inline with brackets like [S1]. End with a short `Sources` list."

@@ -44,14 +44,26 @@ export async function refreshEntrySearchDocument(
         },
         take: 1
       },
-      aiKnowledgeItems: {
+      knowledgeClaims: {
         where: {
           status: "active"
         },
         orderBy: {
           updatedAt: "desc"
         },
-        take: 20
+        take: 24,
+        include: {
+          claimEntities: {
+            include: {
+              entity: {
+                select: {
+                  name: true,
+                  slug: true
+                }
+              }
+            }
+          }
+        }
       },
       aiTopics: {
         where: {
@@ -80,8 +92,16 @@ export async function refreshEntrySearchDocument(
       .map((note) => joinNonEmpty([note.noteType, note.title, note.chapterLabel, note.content]))
       .join("\n"),
     summary,
-    entry.aiKnowledgeItems
-      .map((item) => joinNonEmpty([item.title, item.content]))
+    entry.knowledgeClaims
+      .map((item) =>
+        joinNonEmpty([
+          item.claimType,
+          item.content,
+          item.claimEntities
+            .map((claimEntity) => joinNonEmpty([claimEntity.entity.name, claimEntity.entity.slug]))
+            .join("\n")
+        ])
+      )
       .join("\n"),
     entry.outgoingLinks
       .map((link) => joinNonEmpty([link.targetTitle, link.linkText]))
