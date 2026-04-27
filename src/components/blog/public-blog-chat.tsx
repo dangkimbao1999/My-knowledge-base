@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { RenderedMarkdown } from "@/components/markdown/rendered-markdown";
 import { renderMarkdownPreview } from "@/lib/markdown-preview";
 
 type PublicBlogSource = {
@@ -153,10 +154,10 @@ export function PublicBlogChat() {
               <span>{result.sources.length} public sources</span>
               {result.usage?.total_tokens ? <span>{result.usage.total_tokens} tokens</span> : null}
             </div>
-            <div
+            <RenderedMarkdown
               className="preview blog-article-preview"
+              html={renderMarkdownPreview(cleanedAnswerMarkdown)}
               style={{ minHeight: "auto" }}
-              dangerouslySetInnerHTML={{ __html: renderMarkdownPreview(cleanedAnswerMarkdown) }}
             />
 
             {relatedSources.length > 0 ? (

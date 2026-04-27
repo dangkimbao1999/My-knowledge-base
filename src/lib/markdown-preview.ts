@@ -42,14 +42,47 @@ export function renderMarkdownPreview(markdown: string, options?: RenderMarkdown
   const html: string[] = [];
   let inCodeBlock = false;
   let codeLines: string[] = [];
+  let codeBlockLanguage = "";
+  let inMathBlock = false;
+  let mathLines: string[] = [];
 
   for (const line of lines) {
-    if (line.trim().startsWith("```")) {
+    const trimmedLine = line.trim();
+
+    if (trimmedLine === "$$") {
+      if (inMathBlock) {
+        html.push(`<div class="math-display">$$${escapeHtml(mathLines.join("\n"))}$$</div>`);
+        mathLines = [];
+        inMathBlock = false;
+      } else {
+        inMathBlock = true;
+      }
+
+      continue;
+    }
+
+    if (inMathBlock) {
+      mathLines.push(line);
+      continue;
+    }
+
+    if (/^\$\$[\s\S]*\$\$$/.test(trimmedLine) && trimmedLine.length > 4) {
+      html.push(`<div class="math-display">${escapeHtml(trimmedLine)}</div>`);
+      continue;
+    }
+
+    if (trimmedLine.startsWith("```")) {
       if (inCodeBlock) {
-        html.push(`<pre><code>${escapeHtml(codeLines.join("\n"))}</code></pre>`);
+        if (codeBlockLanguage === "math") {
+          html.push(`<div class="math-display">$$${escapeHtml(codeLines.join("\n"))}$$</div>`);
+        } else {
+          html.push(`<pre><code>${escapeHtml(codeLines.join("\n"))}</code></pre>`);
+        }
         codeLines = [];
+        codeBlockLanguage = "";
         inCodeBlock = false;
       } else {
+        codeBlockLanguage = trimmedLine.slice(3).trim().toLowerCase();
         inCodeBlock = true;
       }
 
@@ -91,7 +124,15 @@ export function renderMarkdownPreview(markdown: string, options?: RenderMarkdown
   }
 
   if (inCodeBlock) {
-    html.push(`<pre><code>${escapeHtml(codeLines.join("\n"))}</code></pre>`);
+    if (codeBlockLanguage === "math") {
+      html.push(`<div class="math-display">$$${escapeHtml(codeLines.join("\n"))}$$</div>`);
+    } else {
+      html.push(`<pre><code>${escapeHtml(codeLines.join("\n"))}</code></pre>`);
+    }
+  }
+
+  if (inMathBlock) {
+    html.push(`<div class="math-display">$$${escapeHtml(mathLines.join("\n"))}$$</div>`);
   }
 
   return html.join("");

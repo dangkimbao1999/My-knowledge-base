@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { RenderedMarkdown } from "@/components/markdown/rendered-markdown";
 import { renderMarkdownPreview } from "@/lib/markdown-preview";
 
 type WikiSource = {
@@ -145,11 +146,9 @@ export function WikiQueryPanel() {
               <span>{answer.sources.length} retrieved sources</span>
               {answer.usage?.total_tokens ? <span>{answer.usage.total_tokens} tokens</span> : null}
             </div>
-            <div
+            <RenderedMarkdown
               className="preview"
-              dangerouslySetInnerHTML={{
-                __html: renderMarkdownPreview(answer.answerMarkdown)
-              }}
+              html={renderMarkdownPreview(answer.answerMarkdown)}
             />
           </article>
 

@@ -496,6 +496,23 @@ select {
   color: #5e4833;
 }
 
+.preview .math-display {
+  margin: 1rem 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.preview mjx-container {
+  margin: 0 !important;
+}
+
+.preview mjx-container[display="true"] {
+  display: block;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.25rem 0;
+}
+
 .preview .wiki-link {
   color: var(--accent-dark);
   background: rgba(201, 111, 49, 0.12);

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Be_Vietnam_Pro, IBM_Plex_Mono } from "next/font/google";
+import { MathJaxScript } from "@/components/markdown/mathjax-script";
 import "./globals.css";
 
 const beVietnamPro = Be_Vietnam_Pro({
@@ -27,7 +28,10 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="vi">
-      <body className={`${beVietnamPro.variable} ${ibmPlexMono.variable}`}>{children}</body>
+      <body className={`${beVietnamPro.variable} ${ibmPlexMono.variable}`}>
+        <MathJaxScript />
+        {children}
+      </body>
     </html>
   );
 }

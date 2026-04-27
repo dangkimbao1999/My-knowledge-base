@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { RenderedMarkdown } from "@/components/markdown/rendered-markdown";
 import { renderMarkdownPreview } from "@/lib/markdown-preview";
 import { blogService } from "@/modules/blog/blog.service";
 
@@ -37,15 +38,13 @@ export default async function BlogDetailPage({ params }: BlogDetailPageProps) {
 
       <div className="blog-detail-grid">
         <article className="blog-detail-main">
-          <div
+          <RenderedMarkdown
             className="preview blog-article-preview"
-            dangerouslySetInnerHTML={{
-              __html: renderMarkdownPreview(post.publishedContent, {
-                resolveWikiLink: (targetTitle) => ({
-                  href: wikiLinkMap[targetTitle.trim().toLowerCase()] ?? null
-                })
+            html={renderMarkdownPreview(post.publishedContent, {
+              resolveWikiLink: (targetTitle) => ({
+                href: wikiLinkMap[targetTitle.trim().toLowerCase()] ?? null
               })
-            }}
+            })}
           />
         </article>
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { RenderedMarkdown } from "@/components/markdown/rendered-markdown";
 import { renderMarkdownPreview } from "@/lib/markdown-preview";
 
 type EntryCard = {
@@ -971,16 +972,14 @@ export function EntryEditor({ initialEntries, initialNavigation, initialSelected
 
           <aside className="cms-preview-panel">
               <p className="panel-kicker">Preview</p>
-              <div
-                className="preview cms-preview"
-                dangerouslySetInnerHTML={{
-                  __html: renderMarkdownPreview(draft.content, {
+                <RenderedMarkdown
+                  className="preview cms-preview"
+                  html={renderMarkdownPreview(draft.content, {
                     resolveWikiLink: (targetTitle) => ({
                       href: previewWikiLinkMap.get(targetTitle.trim().toLowerCase()) ?? null
                     })
-                  })
-                }}
-              />
+                  })}
+                />
 
             <section className="cms-publish-panel">
               <p className="panel-kicker">Public Projection</p>
