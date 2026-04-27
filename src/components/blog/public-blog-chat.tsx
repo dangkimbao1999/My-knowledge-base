@@ -26,8 +26,8 @@ type PublicBlogChatResponse = {
 };
 
 const starterQuestions = [
-  "Ban dang public nhung chu de nao?",
-  "Tom tat nhanh nhung gi quan trong nhat tu blog nay.",
+  "Bạn là ai, bạn là người như thế nào và tại sao bạn lại làm blog này",
+  "Tóm tắt nhanh những gì quan trọng trong blog này",
   "Neu toi moi vao day, toi nen doc bai nao truoc?"
 ];
 
