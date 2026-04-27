@@ -28,7 +28,7 @@ type PublicBlogChatResponse = {
 const starterQuestions = [
   "Bạn là ai, bạn là người như thế nào và tại sao bạn lại làm blog này",
   "Tóm tắt nhanh những gì quan trọng trong blog này",
-  "Neu toi moi vao day, toi nen doc bai nao truoc?"
+  "Bạn định vị bản thân ở thời điểm hiện tại như thế nào?"
 ];
 
 function stripTrailingSourcesSection(markdown: string) {
