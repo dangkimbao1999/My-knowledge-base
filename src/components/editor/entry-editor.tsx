@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import type { ClipboardEvent as ReactClipboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { RenderedMarkdown } from "@/components/markdown/rendered-markdown";
 import { renderMarkdownPreview } from "@/lib/markdown-preview";
 
@@ -122,6 +123,18 @@ function createSlug(value: string) {
     .replace(/^-+|-+$/g, "");
 }
 
+function createImageAltText(fileName: string) {
+  return fileName
+    .replace(/\.[a-z0-9]+$/i, "")
+    .replace(/[-_]+/g, " ")
+    .replace(/[\[\]]+/g, "")
+    .trim() || "Pasted image";
+}
+
+function createPendingImageMarkdown(token: string, altText: string) {
+  return `![${altText}](pending-upload://${token})`;
+}
+
 function toPublishDraft(entry: EntryCard | null): PublishDraftState {
   if (!entry) {
     return {
@@ -161,9 +174,11 @@ export function EntryEditor({ initialEntries, initialNavigation, initialSelected
   const [isPublishing, setIsPublishing] = useState(false);
   const [isPinning, setIsPinning] = useState(false);
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [isUploadingImages, setIsUploadingImages] = useState(false);
   const [publishDraft, setPublishDraft] = useState<PublishDraftState>(
     toPublishDraft(initialSelectedEntry)
   );
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const selectedEntry = useMemo(
     () => entries.find((entry) => entry.id === selectedEntryId) ?? null,
@@ -221,6 +236,35 @@ export function EntryEditor({ initialEntries, initialNavigation, initialSelected
       ...current,
       [key]: value
     }));
+  }
+
+  function replaceDraftSnippet(target: string, replacement: string) {
+    setDraft((current) => ({
+      ...current,
+      content: current.content.replace(target, replacement)
+    }));
+  }
+
+  function insertIntoDraftContent(text: string, selectionStart?: number, selectionEnd?: number) {
+    const textarea = textareaRef.current;
+    const start = selectionStart ?? textarea?.selectionStart ?? draft.content.length;
+    const end = selectionEnd ?? textarea?.selectionEnd ?? start;
+
+    setDraft((current) => ({
+      ...current,
+      content: `${current.content.slice(0, start)}${text}${current.content.slice(end)}`
+    }));
+
+    requestAnimationFrame(() => {
+      if (!textareaRef.current) {
+        return;
+      }
+
+      const caretPosition = start + text.length;
+      textareaRef.current.focus();
+      textareaRef.current.selectionStart = caretPosition;
+      textareaRef.current.selectionEnd = caretPosition;
+    });
   }
 
   function updatePublishDraft<K extends keyof PublishDraftState>(
@@ -805,6 +849,75 @@ export function EntryEditor({ initialEntries, initialNavigation, initialSelected
     }
   }
 
+  async function handlePaste(event: ReactClipboardEvent<HTMLTextAreaElement>) {
+    const imageFiles = Array.from(event.clipboardData.items)
+      .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => Boolean(file));
+
+    if (imageFiles.length === 0) {
+      return;
+    }
+
+    event.preventDefault();
+    setError("");
+    setStatus(imageFiles.length === 1 ? "Uploading pasted image..." : `Uploading ${imageFiles.length} pasted images...`);
+    setIsUploadingImages(true);
+
+    const selectionStart = event.currentTarget.selectionStart;
+    const selectionEnd = event.currentTarget.selectionEnd;
+    const placeholders = imageFiles.map((file) => {
+      const altText = createImageAltText(file.name);
+      return {
+        file,
+        altText,
+        placeholder: createPendingImageMarkdown(crypto.randomUUID(), altText)
+      };
+    });
+    const placeholderBlock = placeholders.map((item) => item.placeholder).join("\n\n");
+
+    insertIntoDraftContent(placeholderBlock, selectionStart, selectionEnd);
+
+    let successCount = 0;
+
+    try {
+      for (const item of placeholders) {
+        const formData = new FormData();
+        formData.set("image", item.file);
+
+        const response = await fetch("/api/files/images", {
+          method: "POST",
+          body: formData
+        });
+        const payload = (await response.json()) as {
+          success: boolean;
+          data?: {
+            url: string;
+          };
+          error?: {
+            message?: string;
+          };
+        };
+
+        if (!response.ok || !payload.success || !payload.data) {
+          replaceDraftSnippet(item.placeholder, "");
+          throw new Error(payload.error?.message || `Unable to upload ${item.file.name}.`);
+        }
+
+        replaceDraftSnippet(item.placeholder, `![${item.altText}](${payload.data.url})`);
+        successCount += 1;
+      }
+
+      setStatus(successCount === 1 ? "Pasted image uploaded." : `${successCount} pasted images uploaded.`);
+    } catch (pasteError) {
+      setError(
+        pasteError instanceof Error ? pasteError.message : "Unable to upload pasted image."
+      );
+    } finally {
+      setIsUploadingImages(false);
+    }
+  }
+
   function renderNode(node: NavigationNode, depth = 0) {
     const isExpanded = !node.path || expandedPaths.has(node.path);
 
@@ -965,8 +1078,10 @@ export function EntryEditor({ initialEntries, initialNavigation, initialSelected
         <div className="cms-editor-body">
           <textarea
             className="textarea editor-textarea cms-writing-area"
+            ref={textareaRef}
             value={draft.content}
             onChange={(event) => updateDraft("content", event.target.value)}
+            onPaste={handlePaste}
             placeholder="Write your entry in Markdown..."
           />
 
@@ -1135,6 +1250,7 @@ export function EntryEditor({ initialEntries, initialNavigation, initialSelected
               disabled={
                 isSaving ||
                 isPublishing ||
+                isUploadingImages ||
                 isGeneratingAI ||
                 !draft.title.trim() ||
                 !draft.content.trim()
@@ -1150,6 +1266,7 @@ export function EntryEditor({ initialEntries, initialNavigation, initialSelected
                 disabled={
                   isSaving ||
                   isPublishing ||
+                  isUploadingImages ||
                   isGeneratingAI ||
                   !draft.title.trim() ||
                   !draft.content.trim()
