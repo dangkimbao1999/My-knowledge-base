@@ -496,6 +496,28 @@ select {
   color: #5e4833;
 }
 
+.preview .markdown-image {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 1rem 0;
+  border-radius: 18px;
+  border: 1px solid rgba(78, 47, 21, 0.1);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 14px 30px rgba(67, 39, 18, 0.08);
+}
+
+.preview .image-upload-placeholder {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.45rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(201, 111, 49, 0.12);
+  color: var(--accent-dark);
+  font-size: 0.92rem;
+}
+
 .preview .math-display {
   margin: 1rem 0;
   overflow-x: auto;

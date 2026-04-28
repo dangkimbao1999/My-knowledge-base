@@ -20,6 +20,15 @@ type RenderMarkdownPreviewOptions = {
 
 function renderInline(text: string, options?: RenderMarkdownPreviewOptions) {
   return escapeHtml(text)
+    .replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g, (_, altText: string, src: string, title?: string) => {
+      if (src.startsWith("pending-upload://")) {
+        return `<span class="image-upload-placeholder">${altText || "Uploading image..."}</span>`;
+      }
+
+      const alt = escapeAttribute(altText);
+      const imageTitle = title ? ` title="${escapeAttribute(title)}"` : "";
+      return `<img alt="${alt}" class="markdown-image" loading="lazy" src="${escapeAttribute(src)}"${imageTitle} />`;
+    })
     .replace(/\[\[([^[\]\|]+?)(?:\|([^[\]]+))?\]\]/g, (_, target: string, alias?: string) => {
       const label = escapeHtml((alias || target).trim());
       const resolution = options?.resolveWikiLink?.(target.trim(), alias?.trim());

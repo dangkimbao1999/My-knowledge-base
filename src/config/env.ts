@@ -14,7 +14,13 @@ const envSchema = z.object({
   LLM_MODEL: z.string().default("gpt-5.4-mini"),
   EMBEDDING_MODEL: z.string().optional(),
   OPENAI_TEMPERATURE: z.coerce.number().min(0).max(2).default(0.2),
-  APP_URL: z.string().url().default("http://localhost:3000")
+  APP_URL: z.string().url().default("http://localhost:3000"),
+  R2_ACCOUNT_ID: z.string().optional(),
+  R2_BUCKET_NAME: z.string().optional(),
+  R2_ACCESS_KEY_ID: z.string().optional(),
+  R2_SECRET_ACCESS_KEY: z.string().optional(),
+  R2_PUBLIC_BASE_URL: z.string().url().optional(),
+  R2_OBJECT_PREFIX: z.string().default("images")
 });
 
 export const env = envSchema.parse({
@@ -31,5 +37,11 @@ export const env = envSchema.parse({
   LLM_MODEL: process.env.LLM_MODEL,
   EMBEDDING_MODEL: process.env.EMBEDDING_MODEL,
   OPENAI_TEMPERATURE: process.env.OPENAI_TEMPERATURE,
-  APP_URL: process.env.APP_URL
+  APP_URL: process.env.APP_URL,
+  R2_ACCOUNT_ID: process.env.R2_ACCOUNT_ID,
+  R2_BUCKET_NAME: process.env.R2_BUCKET_NAME,
+  R2_ACCESS_KEY_ID: process.env.R2_ACCESS_KEY_ID,
+  R2_SECRET_ACCESS_KEY: process.env.R2_SECRET_ACCESS_KEY,
+  R2_PUBLIC_BASE_URL: process.env.R2_PUBLIC_BASE_URL,
+  R2_OBJECT_PREFIX: process.env.R2_OBJECT_PREFIX
 });
