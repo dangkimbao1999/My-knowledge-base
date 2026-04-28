@@ -31,7 +31,7 @@ export default async function BlogLayout({ children }: { children: ReactNode }) 
           <Link className="blog-brand" href="/blog">
             <span className="blog-brand-mark">B</span>
             <span className="blog-brand-text">
-              DANGK <span>/ SECOND BRAIN</span>
+              IAMBAO <span>/ SECOND BRAIN</span>
             </span>
           </Link>
 
