@@ -175,6 +175,9 @@ export function EntryEditor({ initialEntries, initialNavigation, initialSelected
   const [isPinning, setIsPinning] = useState(false);
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [isUploadingImages, setIsUploadingImages] = useState(false);
+  const [previewContent, setPreviewContent] = useState(
+    initialSelectedEntry ? toDraft(initialSelectedEntry).content : initialMarkdown
+  );
   const [publishDraft, setPublishDraft] = useState<PublishDraftState>(
     toPublishDraft(initialSelectedEntry)
   );
@@ -198,10 +201,30 @@ export function EntryEditor({ initialEntries, initialNavigation, initialSelected
 
     return map;
   }, [entries]);
+  const previewHtml = useMemo(
+    () =>
+      renderMarkdownPreview(previewContent, {
+        resolveWikiLink: (targetTitle) => ({
+          href: previewWikiLinkMap.get(targetTitle.trim().toLowerCase()) ?? null
+        })
+      }),
+    [previewContent, previewWikiLinkMap]
+  );
+  const isPreviewStale = previewContent !== draft.content;
 
   useEffect(() => {
     setPublishDraft(toPublishDraft(selectedEntry));
   }, [selectedEntry]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setPreviewContent(draft.content);
+    }, 2000);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [draft.content]);
 
   async function refreshNavigation() {
     const response = await fetch("/api/entries/navigation");
@@ -338,6 +361,7 @@ export function EntryEditor({ initialEntries, initialNavigation, initialSelected
       current.map((entry) => (entry.id === entryId ? savedEntry : entry))
     );
     setDraft(toDraft(savedEntry));
+    setPreviewContent(savedEntry.content ?? initialMarkdown);
     await refreshNavigation();
 
     return savedEntry;
@@ -352,13 +376,16 @@ export function EntryEditor({ initialEntries, initialNavigation, initialSelected
 
     setSelectedEntryId(entry.id);
     setDraft(toDraft(entry));
+    setPreviewContent(entry.content ?? initialMarkdown);
     setError("");
     setStatus("");
   }
 
   function handleNewEntry(path?: string | null) {
     setSelectedEntryId(null);
-    setDraft(createEmptyDraft(path ?? selectedEntry?.logicalPath ?? "inbox"));
+    const nextDraft = createEmptyDraft(path ?? selectedEntry?.logicalPath ?? "inbox");
+    setDraft(nextDraft);
+    setPreviewContent(nextDraft.content);
     setError("");
     setStatus("Ready for a new entry.");
   }
@@ -426,6 +453,7 @@ export function EntryEditor({ initialEntries, initialNavigation, initialSelected
         setEntries((current) => [createdEntry, ...current]);
         setSelectedEntryId(createdEntry.id);
         setDraft(toDraft(createdEntry));
+        setPreviewContent(createdEntry.content ?? initialMarkdown);
         setStatus("Entry created.");
         await refreshNavigation();
       }
@@ -464,9 +492,12 @@ export function EntryEditor({ initialEntries, initialNavigation, initialSelected
       if (remainingEntries[0]) {
         setSelectedEntryId(remainingEntries[0].id);
         setDraft(toDraft(remainingEntries[0]));
+        setPreviewContent(remainingEntries[0].content ?? initialMarkdown);
       } else {
         setSelectedEntryId(null);
-        setDraft(createEmptyDraft());
+        const nextDraft = createEmptyDraft();
+        setDraft(nextDraft);
+        setPreviewContent(nextDraft.content);
       }
 
       await refreshNavigation();
@@ -1086,15 +1117,14 @@ export function EntryEditor({ initialEntries, initialNavigation, initialSelected
           />
 
           <aside className="cms-preview-panel">
+            <div>
               <p className="panel-kicker">Preview</p>
-                <RenderedMarkdown
-                  className="preview cms-preview"
-                  html={renderMarkdownPreview(draft.content, {
-                    resolveWikiLink: (targetTitle) => ({
-                      href: previewWikiLinkMap.get(targetTitle.trim().toLowerCase()) ?? null
-                    })
-                  })}
-                />
+              {isPreviewStale ? <p className="muted-copy">Preview updating...</p> : null}
+            </div>
+            <RenderedMarkdown
+              className="preview cms-preview"
+              html={previewHtml}
+            />
 
             <section className="cms-publish-panel">
               <p className="panel-kicker">Public Projection</p>
