@@ -18,6 +18,39 @@ type RenderMarkdownPreviewOptions = {
   resolveWikiLink?: (targetTitle: string, alias?: string) => WikiLinkResolution | null | undefined;
 };
 
+function parseTableRow(line: string) {
+  const trimmedLine = line.trim();
+
+  if (!trimmedLine.includes("|")) {
+    return null;
+  }
+
+  const normalizedLine = trimmedLine.replace(/^\|/, "").replace(/\|$/, "");
+  const cells = normalizedLine.split("|").map((cell) => cell.trim());
+
+  return cells.length >= 2 ? cells : null;
+}
+
+function isTableDelimiter(line: string) {
+  const cells = parseTableRow(line);
+
+  if (!cells) {
+    return false;
+  }
+
+  return cells.every((cell) => /^:?-{3,}:?$/.test(cell));
+}
+
+function findNextNonEmptyLineIndex(lines: string[], startIndex: number) {
+  for (let index = startIndex; index < lines.length; index += 1) {
+    if (lines[index]?.trim()) {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
 function renderInline(text: string, options?: RenderMarkdownPreviewOptions) {
   return escapeHtml(text)
     .replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g, (_, altText: string, src: string, title?: string) => {
@@ -55,7 +88,8 @@ export function renderMarkdownPreview(markdown: string, options?: RenderMarkdown
   let inMathBlock = false;
   let mathLines: string[] = [];
 
-  for (const line of lines) {
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index] ?? "";
     const trimmedLine = line.trim();
 
     if (trimmedLine === "$$") {
@@ -104,6 +138,43 @@ export function renderMarkdownPreview(markdown: string, options?: RenderMarkdown
     }
 
     if (!line.trim()) {
+      continue;
+    }
+
+    const headerCells = parseTableRow(line);
+    const delimiterIndex = findNextNonEmptyLineIndex(lines, index + 1);
+
+    if (headerCells && delimiterIndex !== -1 && isTableDelimiter(lines[delimiterIndex] ?? "")) {
+      const bodyRows: string[] = [];
+      let rowIndex = delimiterIndex + 1;
+
+      while (rowIndex < lines.length) {
+        const nextLine = lines[rowIndex] ?? "";
+        const nextTrimmedLine = nextLine.trim();
+
+        if (!nextTrimmedLine) {
+          rowIndex += 1;
+          continue;
+        }
+
+        const rowCells = parseTableRow(nextLine);
+
+        if (!rowCells) {
+          break;
+        }
+
+        bodyRows.push(
+          `<tr>${rowCells.map((cell) => `<td>${renderInline(cell, options)}</td>`).join("")}</tr>`
+        );
+        rowIndex += 1;
+      }
+
+      html.push(
+        `<table><thead><tr>${headerCells
+          .map((cell) => `<th>${renderInline(cell, options)}</th>`)
+          .join("")}</tr></thead><tbody>${bodyRows.join("")}</tbody></table>`
+      );
+      index = rowIndex - 1;
       continue;
     }
 
