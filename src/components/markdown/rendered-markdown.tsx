@@ -1,7 +1,7 @@
 "use client";
 
 import type { ComponentPropsWithoutRef } from "react";
-import { useEffect, useRef } from "react";
+import { memo, useEffect, useMemo, useRef } from "react";
 
 type MathJaxApi = {
   startup?: {
@@ -21,13 +21,23 @@ type RenderedMarkdownProps = ComponentPropsWithoutRef<"div"> & {
   html: string;
 };
 
-export function RenderedMarkdown({ html, ...props }: RenderedMarkdownProps) {
+function hasMathMarkup(html: string) {
+  return (
+    html.includes('class="math-display"') ||
+    html.includes("$$") ||
+    html.includes("\\(") ||
+    html.includes("\\[")
+  );
+}
+
+function RenderedMarkdownInner({ html, ...props }: RenderedMarkdownProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const shouldTypesetMath = useMemo(() => hasMathMarkup(html), [html]);
 
   useEffect(() => {
     const container = containerRef.current;
 
-    if (!container) {
+    if (!container || !shouldTypesetMath) {
       return;
     }
 
@@ -61,7 +71,9 @@ export function RenderedMarkdown({ html, ...props }: RenderedMarkdownProps) {
       window.removeEventListener("mathjax-ready", typeset);
       window.MathJax?.typesetClear?.([container]);
     };
-  }, [html]);
+  }, [html, shouldTypesetMath]);
 
   return <div {...props} dangerouslySetInnerHTML={{ __html: html }} ref={containerRef} />;
 }
+
+export const RenderedMarkdown = memo(RenderedMarkdownInner);
