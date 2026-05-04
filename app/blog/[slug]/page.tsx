@@ -19,10 +19,11 @@ function formatTimestamp(value: string | null) {
 
 export default async function BlogDetailPage({ params }: BlogDetailPageProps) {
   const { slug } = await params;
-  const [post, posts] = await Promise.all([blogService.getPublicPost(slug), blogService.listPosts()]);
+  const [post, relatedPosts] = await Promise.all([
+    blogService.getPublicPost(slug),
+    blogService.listRelatedPosts(slug, 4)
+  ]);
   const wikiLinkMap = await blogService.resolvePublicWikiLinkMap(post.publishedContent);
-
-  const relatedPosts = posts.items.filter((item) => item.slug !== slug).slice(0, 4);
   const contentWordCount = post.publishedContent.trim() ? post.publishedContent.trim().split(/\s+/).length : 0;
 
   return (

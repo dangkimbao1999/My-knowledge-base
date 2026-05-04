@@ -1,6 +1,7 @@
 import { ApiError } from "@/lib/api";
 import { extractWikiLinks } from "@/lib/markdown";
 import { prisma } from "@/lib/prisma";
+import { countMatches, tokenize } from "@/lib/retrieval";
 import { buildPublishedContent } from "@/modules/blog/published-content";
 
 type PublishInput = {
@@ -95,6 +96,71 @@ function sortPublishedPosts<
 
     return rightPublished - leftPublished;
   });
+}
+
+function scoreRelatedPost(
+  currentPost: {
+    title: string;
+    description: string | null;
+  },
+  candidate: {
+    title: string;
+    description: string | null;
+    publishedAt: string | null;
+    createdAt: string;
+  }
+) {
+  const relatedTokens = tokenize(
+    `${currentPost.title}\n${currentPost.description ?? ""}`
+  )
+    .filter((token) => token.length >= 3)
+    .slice(0, 24);
+  const titleText = candidate.title.toLowerCase();
+  const descriptionText = (candidate.description ?? "").toLowerCase();
+
+  let score = 0;
+
+  score += countMatches(titleText, relatedTokens) * 10;
+  score += countMatches(descriptionText, relatedTokens) * 6;
+
+  const publishedTime = candidate.publishedAt
+    ? new Date(candidate.publishedAt).getTime()
+    : new Date(candidate.createdAt).getTime();
+  score += publishedTime / 1_000_000_000_000;
+
+  return score;
+}
+
+function serializeRelatedPost(post: {
+  id: string;
+  entryId: string;
+  slug: string;
+  title: string;
+  description: string | null;
+  status: string;
+  pinnedAt: Date | null;
+  pinSlot: number | null;
+  publishedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  entry: {
+    logicalPath: string | null;
+  };
+}) {
+  return {
+    id: post.id,
+    entryId: post.entryId,
+    slug: post.slug,
+    title: post.title,
+    description: post.description,
+    status: post.status,
+    pinnedAt: post.pinnedAt?.toISOString() ?? null,
+    pinSlot: post.pinSlot ?? null,
+    publishedAt: post.publishedAt?.toISOString() ?? null,
+    createdAt: post.createdAt.toISOString(),
+    updatedAt: post.updatedAt.toISOString(),
+    logicalPath: post.entry.logicalPath
+  };
 }
 
 export const blogService = {
@@ -410,6 +476,13 @@ export const blogService = {
       where: {
         slug,
         status: "published"
+      },
+      include: {
+        entry: {
+          select: {
+            logicalPath: true
+          }
+        }
       }
     });
 
@@ -417,7 +490,151 @@ export const blogService = {
       throw new ApiError("Blog post not found", 404);
     }
 
-    return serializeBlogPost(post);
+    return {
+      ...serializeBlogPost(post),
+      logicalPath: post.entry.logicalPath
+    };
+  },
+
+  async listRelatedPosts(slug: string, limit = 4) {
+    const currentPost = await prisma.blogPost.findFirst({
+      where: {
+        slug,
+        status: "published"
+      },
+      include: {
+        entry: {
+          select: {
+            logicalPath: true
+          }
+        }
+      }
+    });
+
+    if (!currentPost) {
+      throw new ApiError("Blog post not found", 404);
+    }
+
+    const explicitLinks = [...new Set(
+      extractWikiLinks(currentPost.publishedContent).map((link) => link.targetTitle.trim().toLowerCase())
+    )].filter(Boolean);
+    const mentionedPosts: Array<ReturnType<typeof serializeRelatedPost>> = [];
+    const selectedEntryIds = new Set<string>();
+
+    if (explicitLinks.length > 0) {
+      const publishedPosts = await prisma.blogPost.findMany({
+        where: {
+          status: "published",
+          slug: {
+            not: slug
+          }
+        },
+        include: {
+          entry: {
+            select: {
+              title: true,
+              aliases: true,
+              logicalPath: true
+            }
+          }
+        },
+        orderBy: {
+          publishedAt: "desc"
+        }
+      });
+
+      const postByMention = new Map<string, ReturnType<typeof serializeRelatedPost>>();
+
+      for (const post of publishedPosts) {
+        const serialized = serializeRelatedPost(post);
+        const titleKey = post.entry.title.trim().toLowerCase();
+
+        if (titleKey && !postByMention.has(titleKey)) {
+          postByMention.set(titleKey, serialized);
+        }
+
+        for (const alias of post.entry.aliases) {
+          const aliasKey = alias.trim().toLowerCase();
+
+          if (aliasKey && !postByMention.has(aliasKey)) {
+            postByMention.set(aliasKey, serialized);
+          }
+        }
+      }
+
+      for (const targetTitle of explicitLinks) {
+        const matchedPost = postByMention.get(targetTitle);
+
+        if (!matchedPost || selectedEntryIds.has(matchedPost.entryId)) {
+          continue;
+        }
+
+        mentionedPosts.push(matchedPost);
+        selectedEntryIds.add(matchedPost.entryId);
+
+        if (mentionedPosts.length >= limit) {
+          return mentionedPosts.slice(0, limit);
+        }
+      }
+    }
+
+    const logicalPath = currentPost.entry.logicalPath?.trim();
+
+    if (!logicalPath) {
+      return mentionedPosts;
+    }
+
+    const posts = await prisma.blogPost.findMany({
+      where: {
+        status: "published",
+        slug: {
+          not: slug
+        },
+        entry: {
+          logicalPath
+        },
+        NOT: {
+          entryId: {
+            in: [...selectedEntryIds]
+          }
+        }
+      },
+      include: {
+        entry: {
+          select: {
+            logicalPath: true
+          }
+        }
+      },
+      orderBy: {
+        publishedAt: "desc"
+      }
+    });
+
+    const remainingSlots = Math.max(0, limit - mentionedPosts.length);
+
+    if (remainingSlots === 0) {
+      return mentionedPosts;
+    }
+
+    const relatedByPath = sortPublishedPosts(posts)
+      .map(serializeListPost)
+      .map((item) => ({
+        item,
+        score: scoreRelatedPost(
+          {
+            title: currentPost.title,
+            description: currentPost.description
+          },
+          item
+        )
+      }))
+      .filter((row) => row.score > 0)
+      .sort((left, right) => right.score - left.score)
+      .slice(0, remainingSlots)
+      .map((row) => row.item);
+
+    return [...mentionedPosts, ...relatedByPath];
   },
 
   async resolvePublicWikiLinkMap(markdown: string) {
