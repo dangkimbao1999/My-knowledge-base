@@ -73,7 +73,9 @@ function renderInline(text: string, options?: RenderMarkdownPreviewOptions) {
 
       return `<span class="${escapeAttribute(className)}">${label}</span>`;
     })
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<span class="wiki-link">$1</span>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label: string, href: string) => {
+      return `<a class="markdown-link" href="${escapeAttribute(href.trim())}" rel="noreferrer" target="_blank">${label.trim()}</a>`;
+    })
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     .replace(/\*([^*]+)\*/g, "<em>$1</em>")
     .replace(/`([^`]+)`/g, "<code>$1</code>");

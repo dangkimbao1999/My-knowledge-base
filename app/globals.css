@@ -579,6 +579,17 @@ select {
   background: rgba(201, 111, 49, 0.2);
 }
 
+.preview a.markdown-link {
+  color: var(--accent-dark);
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 2px;
+}
+
+.preview a.markdown-link:hover {
+  color: var(--accent);
+}
+
 .entry-list {
   display: grid;
   gap: 14px;
