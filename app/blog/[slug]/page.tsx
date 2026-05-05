@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { RenderedMarkdown } from "@/components/markdown/rendered-markdown";
 import { renderMarkdownPreview } from "@/lib/markdown-preview";
@@ -8,6 +9,52 @@ export const dynamic = "force-dynamic";
 type BlogDetailPageProps = {
   params: Promise<{ slug: string }>;
 };
+
+function buildPostDescription(description: string | null, content: string) {
+  if (description?.trim()) {
+    return description.trim();
+  }
+
+  const normalized = content.replace(/\s+/g, " ").trim();
+  return normalized.slice(0, 160);
+}
+
+export async function generateMetadata({ params }: BlogDetailPageProps): Promise<Metadata> {
+  const { slug } = await params;
+  const post = await blogService.getPublicPost(slug);
+  const description = buildPostDescription(post.description, post.publishedContent);
+  const url = `/blog/${post.slug}`;
+
+  return {
+    title: post.title,
+    description,
+    alternates: {
+      canonical: url
+    },
+    openGraph: {
+      title: post.title,
+      description,
+      url,
+      type: "article",
+      publishedTime: post.publishedAt ?? undefined,
+      siteName: "Second Brain Journal",
+      images: [
+        {
+          url: `${url}/opengraph-image`,
+          width: 1200,
+          height: 630,
+          alt: post.title
+        }
+      ]
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: post.title,
+      description,
+      images: [`${url}/opengraph-image`]
+    }
+  };
+}
 
 function formatTimestamp(value: string | null) {
   if (!value) {

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Be_Vietnam_Pro, IBM_Plex_Mono } from "next/font/google";
+import { env } from "@/config/env";
 import { MathJaxScript } from "@/components/markdown/mathjax-script";
 import "./globals.css";
 
@@ -18,6 +19,18 @@ const ibmPlexMono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: "Second Brain Journal",
   description: "Bao's Journaling, sharing, inspiring, and learning",
+  metadataBase: new URL(env.APP_URL),
+  openGraph: {
+    title: "Second Brain Journal",
+    description: "Bao's Journaling, sharing, inspiring, and learning",
+    siteName: "Second Brain Journal",
+    type: "website"
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Second Brain Journal",
+    description: "Bao's Journaling, sharing, inspiring, and learning"
+  },
   icons: {
     icon: "/icon.svg"
   }
