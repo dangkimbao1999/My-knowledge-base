@@ -219,3 +219,31 @@ export function renderMarkdownPreview(markdown: string, options?: RenderMarkdown
 
   return html.join("");
 }
+
+function normalizeLeadText(value: string) {
+  return value.replace(/[*_`>#]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+/**
+ * Drop a leading `# Title` and chapeau paragraph from the body when they
+ * duplicate the title/description already shown in the page header.
+ */
+export function stripDuplicateLead(markdown: string, title: string, description?: string | null) {
+  let rest = markdown.replace(/\r\n/g, "\n").trimStart();
+
+  const heading = rest.match(/^#[ \t]+([^\n]+)\n*/);
+  if (heading && normalizeLeadText(heading[1]) === normalizeLeadText(title)) {
+    rest = rest.slice(heading[0].length);
+  }
+
+  const paragraph = rest.match(/^([^\n]+(?:\n(?![ \t]*\n)[^\n]+)*)\n*/);
+  if (
+    description?.trim() &&
+    paragraph &&
+    normalizeLeadText(paragraph[1]) === normalizeLeadText(description)
+  ) {
+    rest = rest.slice(paragraph[0].length);
+  }
+
+  return rest;
+}

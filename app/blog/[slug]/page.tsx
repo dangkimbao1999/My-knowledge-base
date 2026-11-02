@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { RenderedMarkdown } from "@/components/markdown/rendered-markdown";
-import { renderMarkdownPreview } from "@/lib/markdown-preview";
+import { renderMarkdownPreview, stripDuplicateLead } from "@/lib/markdown-preview";
 import { blogService } from "@/modules/blog/blog.service";
 
 export const dynamic = "force-dynamic";
@@ -71,6 +71,7 @@ export default async function BlogDetailPage({ params }: BlogDetailPageProps) {
     blogService.listRelatedPosts(slug, 4)
   ]);
   const wikiLinkMap = await blogService.resolvePublicWikiLinkMap(post.publishedContent);
+  const bodyContent = stripDuplicateLead(post.publishedContent, post.title, post.description);
   const contentWordCount = post.publishedContent.trim() ? post.publishedContent.trim().split(/\s+/).length : 0;
 
   return (
@@ -88,7 +89,7 @@ export default async function BlogDetailPage({ params }: BlogDetailPageProps) {
         <article className="blog-detail-main">
           <RenderedMarkdown
             className="preview blog-article-preview"
-            html={renderMarkdownPreview(post.publishedContent, {
+            html={renderMarkdownPreview(bodyContent, {
               resolveWikiLink: (targetTitle) => ({
                 href: wikiLinkMap[targetTitle.trim().toLowerCase()] ?? null
               })
