@@ -301,7 +301,7 @@ select {
 
 .cms-sidebar-tree {
   display: grid;
-  gap: 6px;
+  gap: 2px;
 }
 
 .cms-tree-folder,
@@ -332,8 +332,11 @@ select {
 .cms-tree-entry {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  gap: 12px;
+  align-items: flex-start;
+  gap: 8px;
+  padding-top: 7px;
+  padding-bottom: 7px;
+  line-height: 1.4;
   color: #5d4b3d;
 }
 
@@ -343,13 +346,14 @@ select {
 }
 
 .cms-tree-entry-title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .cms-tree-entry-meta {
-  font-size: 0.78rem;
+  flex-shrink: 0;
+  padding-top: 0.15em;
+  font-size: 0.72rem;
   color: var(--muted);
   text-transform: lowercase;
 }
@@ -392,8 +396,16 @@ select {
   align-items: start;
 }
 
+.cms-writing-column {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
 .cms-writing-area {
-  min-height: 72vh;
+  height: 60vh;
+  min-height: 320px;
+  resize: vertical;
   border-radius: 22px;
   padding: 20px;
   background: rgba(255, 255, 255, 0.72);
@@ -402,10 +414,39 @@ select {
 .cms-preview-panel {
   display: grid;
   gap: 10px;
+  position: sticky;
+  top: 20px;
+}
+
+.cms-preview-dialog {
+  width: min(960px, 92vw);
+  max-height: 90vh;
+  padding: 0;
+  border: 0;
+  border-radius: 24px;
+  background: var(--surface);
+}
+
+.cms-preview-dialog::backdrop {
+  background: rgba(30, 20, 12, 0.45);
+}
+
+.cms-preview-dialog-inner {
+  display: grid;
+  gap: 14px;
+  padding: 22px;
+}
+
+.cms-preview-dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
 }
 
 .cms-preview {
-  min-height: 72vh;
+  min-height: 0;
+  overflow: visible;
 }
 
 .cms-publish-panel {
@@ -430,6 +471,10 @@ select {
   justify-content: space-between;
   align-items: center;
   gap: 16px;
+}
+
+.cms-footer .status {
+  min-height: 1.5em;
 }
 
 .editor-panel,
