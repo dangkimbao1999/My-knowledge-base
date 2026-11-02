@@ -175,9 +175,8 @@ export function EntryEditor({ initialEntries, initialNavigation, initialSelected
   const [isPinning, setIsPinning] = useState(false);
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [isUploadingImages, setIsUploadingImages] = useState(false);
-  const [previewContent, setPreviewContent] = useState(
-    initialSelectedEntry ? toDraft(initialSelectedEntry).content : initialMarkdown
-  );
+  const [previewHtml, setPreviewHtml] = useState("");
+  const previewDialogRef = useRef<HTMLDialogElement>(null);
   const [publishDraft, setPublishDraft] = useState<PublishDraftState>(
     toPublishDraft(initialSelectedEntry)
   );
@@ -201,30 +200,20 @@ export function EntryEditor({ initialEntries, initialNavigation, initialSelected
 
     return map;
   }, [entries]);
-  const previewHtml = useMemo(
-    () =>
-      renderMarkdownPreview(previewContent, {
+  function openPreview() {
+    setPreviewHtml(
+      renderMarkdownPreview(draft.content, {
         resolveWikiLink: (targetTitle) => ({
           href: previewWikiLinkMap.get(targetTitle.trim().toLowerCase()) ?? null
         })
-      }),
-    [previewContent, previewWikiLinkMap]
-  );
-  const isPreviewStale = previewContent !== draft.content;
+      })
+    );
+    previewDialogRef.current?.showModal();
+  }
 
   useEffect(() => {
     setPublishDraft(toPublishDraft(selectedEntry));
   }, [selectedEntry]);
-
-  useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      setPreviewContent(draft.content);
-    }, 2000);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [draft.content]);
 
   async function refreshNavigation() {
     const response = await fetch("/api/entries/navigation");
@@ -361,7 +350,6 @@ export function EntryEditor({ initialEntries, initialNavigation, initialSelected
       current.map((entry) => (entry.id === entryId ? savedEntry : entry))
     );
     setDraft(toDraft(savedEntry));
-    setPreviewContent(savedEntry.content ?? initialMarkdown);
     await refreshNavigation();
 
     return savedEntry;
@@ -376,7 +364,6 @@ export function EntryEditor({ initialEntries, initialNavigation, initialSelected
 
     setSelectedEntryId(entry.id);
     setDraft(toDraft(entry));
-    setPreviewContent(entry.content ?? initialMarkdown);
     setError("");
     setStatus("");
   }
@@ -385,7 +372,6 @@ export function EntryEditor({ initialEntries, initialNavigation, initialSelected
     setSelectedEntryId(null);
     const nextDraft = createEmptyDraft(path ?? selectedEntry?.logicalPath ?? "inbox");
     setDraft(nextDraft);
-    setPreviewContent(nextDraft.content);
     setError("");
     setStatus("Ready for a new entry.");
   }
@@ -453,7 +439,6 @@ export function EntryEditor({ initialEntries, initialNavigation, initialSelected
         setEntries((current) => [createdEntry, ...current]);
         setSelectedEntryId(createdEntry.id);
         setDraft(toDraft(createdEntry));
-        setPreviewContent(createdEntry.content ?? initialMarkdown);
         setStatus("Entry created.");
         await refreshNavigation();
       }
@@ -492,12 +477,10 @@ export function EntryEditor({ initialEntries, initialNavigation, initialSelected
       if (remainingEntries[0]) {
         setSelectedEntryId(remainingEntries[0].id);
         setDraft(toDraft(remainingEntries[0]));
-        setPreviewContent(remainingEntries[0].content ?? initialMarkdown);
       } else {
         setSelectedEntryId(null);
         const nextDraft = createEmptyDraft();
         setDraft(nextDraft);
-        setPreviewContent(nextDraft.content);
       }
 
       await refreshNavigation();
@@ -957,11 +940,11 @@ export function EntryEditor({ initialEntries, initialNavigation, initialSelected
         {node.path ? (
           <button
             className="cms-tree-folder"
-            style={{ paddingLeft: 14 + depth * 14 }}
+            style={{ paddingLeft: 10 + depth * 12 }}
             type="button"
             onClick={() => toggleFolder(node.path!)}
           >
-            <span>{isExpanded ? "v" : ">"}</span>
+            <span>{isExpanded ? "▾" : "▸"}</span>
             <span>{node.name}</span>
           </button>
         ) : null}
@@ -973,7 +956,7 @@ export function EntryEditor({ initialEntries, initialNavigation, initialSelected
               <button
                 className={`cms-tree-entry ${selectedEntryId === entry.id ? "active" : ""}`}
                 key={entry.id}
-                style={{ paddingLeft: (node.path ? depth + 1 : depth) * 14 + 28 }}
+                style={{ paddingLeft: (node.path ? depth + 1 : depth) * 12 + 22 }}
                 type="button"
                 onClick={() => handleSelectEntry(entry.id)}
               >
@@ -1107,25 +1090,71 @@ export function EntryEditor({ initialEntries, initialNavigation, initialSelected
         </div>
 
         <div className="cms-editor-body">
-          <textarea
-            className="textarea editor-textarea cms-writing-area"
-            ref={textareaRef}
-            value={draft.content}
-            onChange={(event) => updateDraft("content", event.target.value)}
-            onPaste={handlePaste}
-            placeholder="Write your entry in Markdown..."
-          />
-
-          <aside className="cms-preview-panel">
-            <div>
-              <p className="panel-kicker">Preview</p>
-              {isPreviewStale ? <p className="muted-copy">Preview updating...</p> : null}
-            </div>
-            <RenderedMarkdown
-              className="preview cms-preview"
-              html={previewHtml}
+          <div className="cms-writing-column">
+            <textarea
+              className="textarea editor-textarea cms-writing-area"
+              ref={textareaRef}
+              value={draft.content}
+              onChange={(event) => updateDraft("content", event.target.value)}
+              onPaste={handlePaste}
+              placeholder="Write your entry in Markdown..."
             />
 
+            <div className="cms-footer">
+              <div className="button-row">
+                <button
+                  className="button"
+                  type="button"
+                  onClick={handleSave}
+                  disabled={
+                    isSaving ||
+                    isPublishing ||
+                    isUploadingImages ||
+                    isGeneratingAI ||
+                    !draft.title.trim() ||
+                    !draft.content.trim()
+                  }
+                >
+                  {isSaving ? "Saving..." : selectedEntry ? "Save changes" : "Create entry"}
+                </button>
+                <button className="button-secondary" type="button" onClick={openPreview}>
+                  Preview
+                </button>
+                {selectedEntry ? (
+                  <button
+                    className="button-secondary"
+                    type="button"
+                    onClick={handleGenerateAI}
+                    disabled={
+                      isSaving ||
+                      isPublishing ||
+                      isUploadingImages ||
+                      isGeneratingAI ||
+                      !draft.title.trim() ||
+                      !draft.content.trim()
+                    }
+                  >
+                    {isGeneratingAI ? "Generating AI..." : "Generate AI artifacts"}
+                  </button>
+                ) : null}
+                <button
+                  className="button-secondary"
+                  type="button"
+                  onClick={() =>
+                    selectedEntry ? setDraft(toDraft(selectedEntry)) : setDraft(createEmptyDraft(draft.logicalPath))
+                  }
+                  disabled={isSaving || isGeneratingAI}
+                >
+                  Reset
+                </button>
+              </div>
+              <div className={`status ${error ? "error" : status ? "success" : ""}`}>
+                {error || status}
+              </div>
+            </div>
+          </div>
+
+          <aside className="cms-preview-panel">
             <section className="cms-publish-panel">
               <p className="panel-kicker">Public Projection</p>
               {selectedEntry ? (
@@ -1268,56 +1297,29 @@ export function EntryEditor({ initialEntries, initialNavigation, initialSelected
           </aside>
         </div>
 
-        <div className="cms-footer">
-          <div className={`status ${error ? "error" : status ? "success" : ""}`}>
-            {error || status}
-          </div>
-          <div className="button-row">
-            <button
-              className="button"
-              type="button"
-              onClick={handleSave}
-              disabled={
-                isSaving ||
-                isPublishing ||
-                isUploadingImages ||
-                isGeneratingAI ||
-                !draft.title.trim() ||
-                !draft.content.trim()
-              }
-            >
-              {isSaving ? "Saving..." : selectedEntry ? "Save changes" : "Create entry"}
-            </button>
-            {selectedEntry ? (
-              <button
-                className="button-secondary"
-                type="button"
-                onClick={handleGenerateAI}
-                disabled={
-                  isSaving ||
-                  isPublishing ||
-                  isUploadingImages ||
-                  isGeneratingAI ||
-                  !draft.title.trim() ||
-                  !draft.content.trim()
-                }
-              >
-                {isGeneratingAI ? "Generating AI..." : "Generate AI artifacts"}
-              </button>
-            ) : null}
+      </section>
+
+      <dialog
+        className="cms-preview-dialog"
+        ref={previewDialogRef}
+        onClick={(event) => {
+          if (event.target === event.currentTarget) event.currentTarget.close();
+        }}
+      >
+        <div className="cms-preview-dialog-inner">
+          <div className="cms-preview-dialog-header">
+            <p className="panel-kicker">Preview — {draft.title || "Untitled"}</p>
             <button
               className="button-secondary"
               type="button"
-              onClick={() =>
-                selectedEntry ? setDraft(toDraft(selectedEntry)) : setDraft(createEmptyDraft(draft.logicalPath))
-              }
-              disabled={isSaving || isGeneratingAI}
+              onClick={() => previewDialogRef.current?.close()}
             >
-              Reset
+              Close
             </button>
           </div>
+          <RenderedMarkdown className="preview cms-preview" html={previewHtml} />
         </div>
-      </section>
+      </dialog>
     </div>
   );
 }
