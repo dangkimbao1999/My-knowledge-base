@@ -747,3 +747,41 @@ select {
     align-items: stretch;
   }
 }
+
+.idea-inbox {
+  display: grid;
+  gap: 12px;
+}
+
+.idea-item {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 12px 16px;
+  background: var(--surface-strong);
+}
+
+.idea-item summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.idea-item summary .muted-copy {
+  margin: 0;
+  flex: 1;
+}
+
+.idea-item .select {
+  width: auto;
+  padding: 6px 10px;
+}
+
+.idea-preview {
+  width: 100%;
+  min-height: 320px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #ffffff;
+  resize: vertical;
+}

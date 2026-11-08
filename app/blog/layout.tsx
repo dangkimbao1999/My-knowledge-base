@@ -27,6 +27,13 @@ export default async function BlogLayout({ children }: { children: ReactNode }) 
   return (
     <div className={`${blogHeadline.variable} ${blogBody.variable} ${blogMono.variable} blog-kernel`}>
       <nav className="blog-topbar">
+        <Link className="blog-campaign" href="/blog/ideas">
+          <span className="blog-campaign-tag">New</span>
+          <span>
+            <strong>Your idea, I develop</strong> — gửi ý tưởng, mình build sản phẩm miễn phí, không đòi quyền sở hữu.
+          </span>
+          <span className="blog-campaign-cta">Gửi ý tưởng →</span>
+        </Link>
         <div className="blog-topbar-inner">
           <Link className="blog-brand" href="/blog">
             <span className="blog-brand-mark">B</span>

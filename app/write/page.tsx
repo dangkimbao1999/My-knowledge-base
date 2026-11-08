@@ -35,6 +35,9 @@ export default async function WritePage({ searchParams }: WritePageProps) {
           </p>
         </div>
         <div className="button-row">
+          <a className="button-secondary" href="/write/ideas">
+            Ideas inbox
+          </a>
           <a className="button-secondary" href="/blog" target="_blank" rel="noreferrer">
             View public blog
           </a>

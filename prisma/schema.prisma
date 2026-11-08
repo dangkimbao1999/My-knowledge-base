@@ -440,3 +440,27 @@ model ProcessingJob {
   @@index([state, createdAt(sort: Desc)])
   @@index([jobType, state])
 }
+
+enum IdeaStatus {
+  unread
+  read
+  selected
+  contacted
+  in_progress
+  delivered
+  rejected
+}
+
+model IdeaSubmission {
+  id              String     @id @default(uuid())
+  title           String
+  descriptionHtml String
+  name            String
+  email           String
+  contact         String?
+  status          IdeaStatus @default(unread)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@index([status, createdAt(sort: Desc)])
+}
