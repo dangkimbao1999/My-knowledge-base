@@ -80,9 +80,9 @@ export default async function BlogLayout({ children }: { children: ReactNode }) 
       <footer className="blog-footer">
         <div className="blog-footer-inner">
           <div className="blog-footer-links">
-            <span>Product Architecture</span>
-            <span>AI Systems</span>
-            <span>Knowledge Design</span>
+            <span>AI for Research</span>
+            <span>AI for Invention</span>
+            <span>AI for Operations</span>
           </div>
           <div className="blog-footer-meta">2026 // SECOND_BRAIN_BLUEPRINT</div>
         </div>
