@@ -44,14 +44,15 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
     <div className="blog-page">
       <section className="blog-hero" id="connect">
         <div className="blog-hero-copy">
-          <div className="blog-section-tag">Mission: AI for every industry</div>
+          <div className="blog-section-tag">Applied AI Engineer // AI in production at scale</div>
           <h1 className="blog-hero-title">
-            Hi, I&apos;m Bao. <span className="blog-hero-accent">AI</span> for{" "}
-            <span className="blog-hero-highlight">every industry.</span>
+            Hi, I&apos;m Bao. <span className="blog-hero-accent">Applied AI</span> Engineer, đưa AI vào{" "}
+            <span className="blog-hero-highlight">production at scale.</span>
           </h1>
           <p className="blog-hero-description">
-            Sứ mệnh của tôi là giúp mọi ngành ứng dụng AI vào nghiên cứu, phát minh và vận hành, để họ đạt được năng
-            suất tối đa.
+            Tôi là Applied AI Engineer: biến mô hình AI thành hệ thống chạy thật trong production, ở quy mô lớn, với độ
+            tin cậy, chi phí và hiệu quả đo được. Mục tiêu: giúp mọi ngành ứng dụng AI vào nghiên cứu, phát minh và vận
+            hành, để đạt năng suất tối đa.
           </p>
         </div>
 
@@ -84,25 +85,25 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
 
             <div className="blog-hero-card blog-sidebar-chart">
               <div className="blog-hero-card-head">
-                <span className="blog-mono-label">AI_Adoption_Map</span>
-                <span className="blog-status-ok">STATUS: BUILDING</span>
+                <span className="blog-mono-label">AI_Production_Pipeline</span>
+                <span className="blog-status-ok">STATUS: IN_PRODUCTION</span>
               </div>
 
               <div className="blog-metric-bars">
                 <div className="blog-metric-row">
-                  <span>Research</span>
+                  <span>Build</span>
                   <div className="blog-metric-track">
                     <div className="blog-metric-fill blue" style={{ width: "100%" }} />
                   </div>
                 </div>
                 <div className="blog-metric-row">
-                  <span>Invention</span>
+                  <span>Ship</span>
                   <div className="blog-metric-track">
                     <div className="blog-metric-fill indigo" style={{ width: "100%" }} />
                   </div>
                 </div>
                 <div className="blog-metric-row">
-                  <span>Operations</span>
+                  <span>Scale</span>
                   <div className="blog-metric-track">
                     <div className="blog-metric-fill gold" style={{ width: "100%" }} />
                   </div>
@@ -110,8 +111,8 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
               </div>
 
               <div className="blog-hero-quote">
-                "AI sẽ là nền tảng cho sự phát triển của rất nhiều ngành. Câu hỏi không còn là có dùng AI hay không, mà
-                là ai sẽ là người đi đầu."
+                "Làm demo AI thì dễ. Đưa AI vào production và chạy ổn định ở quy mô lớn mới là phần khó, và đó là việc
+                của tôi."
               </div>
             </div>
           </div>
@@ -230,15 +231,17 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
       <section className="blog-narrative" id="narrative">
         <div className="blog-narrative-side">
           <div className="blog-section-tag">Narrative Log</div>
-          <h2 className="blog-narrative-title">From Builder To AI Pioneer</h2>
+          <h2 className="blog-narrative-title">From Software Engineer To Applied AI Engineer</h2>
           <p className="blog-narrative-description">
-            Hành trình từ kỹ sư phần mềm, qua product, đến sứ mệnh đưa AI vào nghiên cứu và sản xuất của mọi ngành.
+            Hành trình từ kỹ sư phần mềm, qua product, đến Applied AI Engineer: người đưa AI từ demo vào production ở
+            quy mô lớn.
           </p>
 
           <div className="blog-takeaways-card">
             <h4 className="blog-takeaways-title">Key Beliefs</h4>
             <ul className="blog-takeaways-list">
-              <li>AI là hạ tầng nền tảng, không phải một tính năng đi kèm.</li>
+              <li>Mô hình chưa vào production thì chưa tạo ra giá trị.</li>
+              <li>AI production = evaluation, observability, chi phí và độ tin cậy, không chỉ là prompt.</li>
               <li>Dữ liệu chuẩn hóa là điều kiện tiên quyết để AI tạo ra giá trị thật.</li>
               <li>Chuyên gia nên dành thời gian cho khám phá, không phải cho việc xử lý dữ liệu thủ công.</li>
             </ul>
@@ -261,26 +264,26 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
           <article className="blog-timeline-item conflict">
             <div className="blog-timeline-dot">02</div>
             <div className="blog-timeline-content">
-              <h3 className="blog-timeline-title blog-timeline-title-conflict">02. Shift: AI Changes Everything</h3>
-              <p className="blog-timeline-meta blog-timeline-meta-conflict">Từ một ngành dọc đến mọi ngành</p>
+              <h3 className="blog-timeline-title blog-timeline-title-conflict">02. Shift: From Demo To Production</h3>
+              <p className="blog-timeline-meta blog-timeline-meta-conflict">Khoảng cách giữa demo và production</p>
               <p className="blog-timeline-copy">
-                Khi làm việc với AI, tôi nhận ra nó không chỉ thay đổi một sản phẩm hay một ngành, mà thay đổi cách mọi
-                ngành nghiên cứu, phát minh và vận hành. Nút thắt hiếm khi nằm ở mô hình, mà nằm ở{" "}
-                <strong>dữ liệu rời rạc, quy trình thủ công và khoảng cách giữa chuyên gia với công nghệ.</strong>
+                Khi làm việc với AI, tôi nhận ra rất nhiều dự án dừng lại ở demo. Nút thắt hiếm khi nằm ở mô hình, mà nằm
+                ở <strong>dữ liệu rời rạc, thiếu evaluation, chi phí và độ trễ khi chạy thật, và hệ thống không chịu được
+                tải thực tế.</strong>
               </p>
               <div className="blog-failure-grid">
                 <div className="blog-failure-card">
-                  <strong>Bottleneck // Data</strong>
+                  <strong>Bottleneck // Demo → Production</strong>
                   <span>
-                    Nhà khoa học, kỹ sư, chuyên gia vẫn dành phần lớn thời gian để <strong>làm sạch và ghép dữ liệu</strong>{" "}
-                    thay vì tạo ra phát hiện mới.
+                    Prototype chạy tốt trên vài ví dụ, nhưng <strong>vỡ khi gặp dữ liệu thật, người dùng thật và tải
+                    thật.</strong>
                   </span>
                 </div>
                 <div className="blog-failure-card">
-                  <strong>Opportunity // Pipelines</strong>
+                  <strong>Opportunity // Production AI</strong>
                   <span>
-                    Hệ thống AI kết hợp <strong>data pipeline chuẩn hóa</strong> giải phóng thời gian đó, và biến dữ liệu
-                    thành lợi thế cạnh tranh.
+                    <strong>Data pipeline chuẩn hóa, evaluation và monitoring</strong> biến AI thành hệ thống tin cậy được,
+                    và biến dữ liệu thành lợi thế cạnh tranh.
                   </span>
                 </div>
               </div>
@@ -290,11 +293,11 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
           <article className="blog-timeline-item resolution">
             <div className="blog-timeline-dot">03</div>
             <div className="blog-timeline-content">
-              <h3 className="blog-timeline-title">03. Mission: Pioneer AI Adoption</h3>
-              <p className="blog-timeline-meta">Research | Invention | Operations</p>
+              <h3 className="blog-timeline-title">03. Mission: AI In Production, At Scale</h3>
+              <p className="blog-timeline-meta">Applied AI Engineering | Research | Invention | Operations</p>
               <p className="blog-timeline-copy">
-                Tôi muốn là người đi đầu trong việc đưa AI vào các bài toán nghiên cứu và sản xuất. Mỗi sản phẩm, mỗi
-                thử nghiệm là một bước để hiểu AI thực sự làm được gì. Bạn có bài toán cần AI?{" "}
+                Tôi đưa AI vào các bài toán nghiên cứu và sản xuất, không dừng ở demo mà chạy thật trong production, ở quy
+                mô lớn. Bạn có bài toán cần AI?{" "}
                 <Link href="/blog/ideas"><strong>Gửi ý tưởng cho tôi.</strong></Link>
               </p>
             </div>
@@ -305,9 +308,17 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
       <section className="blog-expertise" id="knowledge">
         <div className="blog-expertise-copy">
           <div className="blog-section-tag">Focus Areas</div>
-          <h2 className="blog-expertise-title">AI Across The Value Chain.</h2>
+          <h2 className="blog-expertise-title">Applied AI, Built For Production.</h2>
 
           <div className="blog-expertise-list">
+            <div className="blog-expertise-item">
+              <h3>Production AI at Scale</h3>
+              <p>
+                Evaluation, observability, guardrails, tối ưu chi phí và độ trễ: những gì cần để AI chạy ổn định với người
+                dùng thật và tải thật.
+              </p>
+            </div>
+
             <div className="blog-expertise-item">
               <h3>AI for Research</h3>
               <p>
@@ -336,9 +347,9 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
 
         <div className="blog-expertise-quote">
           <blockquote>
-            &quot;Giúp mọi ngành ứng dụng AI vào nghiên cứu, phát minh và vận hành, để đạt được năng suất tối đa.&quot;
+            &quot;Đưa AI từ demo vào production, ở quy mô lớn, để mọi ngành đạt được năng suất tối đa.&quot;
           </blockquote>
-          <p>Bao</p>
+          <p>Bao, Applied AI Engineer</p>
         </div>
       </section>
 
@@ -348,8 +359,8 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
           Every Industry At Its <span>Full Productivity.</span>
         </h2>
         <p className="blog-vision-copy">
-          Tôi tin AI sẽ là nền tảng cho sự phát triển của rất nhiều ngành. Mục tiêu của tôi là giúp các tổ chức trong
-          nghiên cứu và sản xuất adapt AI sớm, đúng cách, và đạt được năng suất tối đa của họ.
+          Tôi tin AI sẽ là nền tảng cho sự phát triển của rất nhiều ngành. Là một Applied AI Engineer, tôi giúp các tổ
+          chức đưa AI vào production sớm, đúng cách, chạy ổn định ở quy mô lớn, và đạt được năng suất tối đa.
         </p>
         <a className="blog-primary-button" href="https://www.linkedin.com/in/iambao/">
           Liên hệ ngay
