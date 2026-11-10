@@ -44,15 +44,15 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
     <div className="blog-page">
       <section className="blog-hero" id="connect">
         <div className="blog-hero-copy">
-          <div className="blog-section-tag">Role: Product Architect</div>
+          <div className="blog-section-tag">Applied AI Engineer // AI in production at scale</div>
           <h1 className="blog-hero-title">
-            <span className="blog-hero-accent">AI </span>{" "}
-            envolvement and <span className="blog-hero-highlight">Fintech </span> rigor
+            Hi, I&apos;m Bao. <span className="blog-hero-accent">Applied AI</span> Engineer, đưa AI vào{" "}
+            <span className="blog-hero-highlight">production at scale.</span>
           </h1>
           <p className="blog-hero-description">
-            Sự tiến hóa của AI đang dần bắt kịp sự phát triển của sản phẩm số, Bằng cách kết hợp giữa kinh nghiệm về
-            Technical, Fintech và Product Ownership, tôi giúp đồng bộ hóa các ràng buộc, tầm nhìn về mô hình sản phẩm
-            để xây dựng hệ thống chính xác, và có khả năng mở rộng, đặc biệt là trong lĩnh vực Fintech và AI
+            Tôi là Applied AI Engineer: biến mô hình AI thành hệ thống chạy thật trong production, ở quy mô lớn, với độ
+            tin cậy, chi phí và hiệu quả đo được. Mục tiêu: giúp mọi ngành ứng dụng AI vào nghiên cứu, phát minh và vận
+            hành, để đạt năng suất tối đa.
           </p>
         </div>
 
@@ -85,34 +85,34 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
 
             <div className="blog-hero-card blog-sidebar-chart">
               <div className="blog-hero-card-head">
-                <span className="blog-mono-label">Alignment_Chart</span>
-                <span className="blog-status-ok">STATUS: STABLE</span>
+                <span className="blog-mono-label">AI_Production_Pipeline</span>
+                <span className="blog-status-ok">STATUS: IN_PRODUCTION</span>
               </div>
 
               <div className="blog-metric-bars">
                 <div className="blog-metric-row">
-                  <span>Product</span>
+                  <span>Build</span>
                   <div className="blog-metric-track">
-                    <div className="blog-metric-fill blue" style={{ width: "88%" }} />
+                    <div className="blog-metric-fill blue" style={{ width: "100%" }} />
                   </div>
                 </div>
                 <div className="blog-metric-row">
-                  <span>Engineering</span>
+                  <span>Ship</span>
                   <div className="blog-metric-track">
                     <div className="blog-metric-fill indigo" style={{ width: "100%" }} />
                   </div>
                 </div>
                 <div className="blog-metric-row">
-                  <span>Finance</span>
+                  <span>Scale</span>
                   <div className="blog-metric-track">
-                    <div className="blog-metric-fill gold" style={{ width: "92%" }} />
+                    <div className="blog-metric-fill gold" style={{ width: "100%" }} />
                   </div>
                 </div>
               </div>
 
               <div className="blog-hero-quote">
-                "Một Product Owner giỏi trong Fintech không chỉ nói về cái gì, mà còn phải hiểu như thế nào và tại sao
-                ở mọi tầng kiến trúc."
+                "Làm demo AI thì dễ. Đưa AI vào production và chạy ổn định ở quy mô lớn mới là phần khó, và đó là việc
+                của tôi."
               </div>
             </div>
           </div>
@@ -231,17 +231,19 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
       <section className="blog-narrative" id="narrative">
         <div className="blog-narrative-side">
           <div className="blog-section-tag">Narrative Log</div>
-          <h2 className="blog-narrative-title">The Evolution Of A Product Architect</h2>
+          <h2 className="blog-narrative-title">From Software Engineer To Applied AI Engineer</h2>
           <p className="blog-narrative-description">
-            Phân tích hành trình từ kỹ sư phần mềm thuần túy đến người dẫn dắt sản phẩm tài chính phức tạp.
+            Hành trình từ kỹ sư phần mềm, qua product, đến Applied AI Engineer: người đưa AI từ demo vào production ở
+            quy mô lớn.
           </p>
 
           <div className="blog-takeaways-card">
-            <h4 className="blog-takeaways-title">Key Takeaways</h4>
+            <h4 className="blog-takeaways-title">Key Beliefs</h4>
             <ul className="blog-takeaways-list">
-              <li>Phân tích đa tầng để nhìn đúng bản chất vấn đề.</li>
-              <li>Storytelling là cách kết nối kỹ thuật với giá trị thị trường.</li>
-              <li>First principles giúp sản phẩm bền vững hơn khi scale.</li>
+              <li>Mô hình chưa vào production thì chưa tạo ra giá trị.</li>
+              <li>AI production = evaluation, observability, chi phí và độ tin cậy, không chỉ là prompt.</li>
+              <li>Dữ liệu chuẩn hóa là điều kiện tiên quyết để AI tạo ra giá trị thật.</li>
+              <li>Chuyên gia nên dành thời gian cho khám phá, không phải cho việc xử lý dữ liệu thủ công.</li>
             </ul>
           </div>
         </div>
@@ -250,12 +252,11 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
           <article className="blog-timeline-item">
             <div className="blog-timeline-dot">01</div>
             <div className="blog-timeline-content">
-              <h3 className="blog-timeline-title">01. Setup: The Binary Foundation</h3>
-              <p className="blog-timeline-meta">Bằng kép CS (VGU & Frankfurt) | Netcompany | Startup Culture</p>
+              <h3 className="blog-timeline-title">01. Foundation: Engineering &amp; Product</h3>
+              <p className="blog-timeline-meta">Bằng kép CS (VGU &amp; Frankfurt) | Netcompany | Fintech</p>
               <p className="blog-timeline-copy">
-                Mọi PO xuất sắc đều cần một nền tảng vững chắc. Với tấm bằng kép loại giỏi từ Đức, tôi bắt đầu sự
-                nghiệp bằng việc xây dựng những hệ thống khắt khe nhất. Tôi hiểu từng byte dữ liệu vận hành thế nào.
-                Tuy nhiên, tôi sớm nhận ra: <strong>code chỉ là công cụ, sản phẩm mới là giá trị cốt lõi của doanh nghiệp.</strong>
+                Tôi bắt đầu bằng việc xây dựng những hệ thống khắt khe, rồi bước sang product để hiểu vì sao một hệ
+                thống tồn tại. Bài học lớn nhất: <strong>công nghệ chỉ có giá trị khi nó giải quyết đúng vấn đề của con người.</strong>
               </p>
             </div>
           </article>
@@ -263,30 +264,26 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
           <article className="blog-timeline-item conflict">
             <div className="blog-timeline-dot">02</div>
             <div className="blog-timeline-content">
-              <h3 className="blog-timeline-title blog-timeline-title-conflict">02. Conflict: The Audit & Strategic Pivot</h3>
-              <p className="blog-timeline-meta blog-timeline-meta-conflict">
-                Giai đoạn thất nghiệp: Phỏng vấn thất bại tại Zalo, Qode, ... và giao đoạn chuyển giao khó khăn
-              </p>
+              <h3 className="blog-timeline-title blog-timeline-title-conflict">02. Shift: From Demo To Production</h3>
+              <p className="blog-timeline-meta blog-timeline-meta-conflict">Khoảng cách giữa demo và production</p>
               <p className="blog-timeline-copy">
-                Thất bại không phải là dấu chấm hết, mà là một cơ hội mài giũa năng lực. Việc không vượt qua vòng tuyển
-                dụng tại <strong>Zalo</strong> chỉ ra những lỗ hổng lớn trong tư duy của tôi lúc này: quá tập trung vào
-                giải pháp \(solution space\) mà chưa đi đủ sâu về <strong>Problem space</strong> và thiếu sự sắc bén
-                trong giao tiếp với stakeholder.
+                Khi làm việc với AI, tôi nhận ra rất nhiều dự án dừng lại ở demo. Nút thắt hiếm khi nằm ở mô hình, mà nằm
+                ở <strong>dữ liệu rời rạc, thiếu evaluation, chi phí và độ trễ khi chạy thật, và hệ thống không chịu được
+                tải thực tế.</strong>
               </p>
               <div className="blog-failure-grid">
                 <div className="blog-failure-card">
-                  <strong>Audit Findings // Zalo</strong>
+                  <strong>Bottleneck // Demo → Production</strong>
                   <span>
-                    Thiếu cái nhìn bao quát về business ecosystem. Đề bài nhiều khi là <strong>hỏa mù</strong> nếu vội
-                    vã và không cắt được lớp của vấn đề, từ đó trụ cột không vững chắc và giải pháp không đủ thuyết phục
+                    Prototype chạy tốt trên vài ví dụ, nhưng <strong>vỡ khi gặp dữ liệu thật, người dùng thật và tải
+                    thật.</strong>
                   </span>
                 </div>
                 <div className="blog-failure-card">
-                  <strong>Hit rate hiện chỉ có 15% </strong>
+                  <strong>Opportunity // Production AI</strong>
                   <span>
-                    Tôi nhận ra giai đoạn vừa rồi tôi khá là lan man trong việc tìm kiếm khi chưa nghĩ kỹ ngách mình
-                    muốn theo đuổi tiếp theo, tuy nhiên bây giờ thì 100% <strong>Fintech + AI</strong> để tận dụng tốt
-                    nhất kỹ năng đã có sẵn
+                    <strong>Data pipeline chuẩn hóa, evaluation và monitoring</strong> biến AI thành hệ thống tin cậy được,
+                    và biến dữ liệu thành lợi thế cạnh tranh.
                   </span>
                 </div>
               </div>
@@ -296,9 +293,13 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
           <article className="blog-timeline-item resolution">
             <div className="blog-timeline-dot">03</div>
             <div className="blog-timeline-content">
-              <h3 className="blog-timeline-title">03. Resolution: The Awakening (still waiting...)</h3>
-              <p className="blog-timeline-meta">PO/PM/BA | Fintech | AI</p>
-              <p className="blog-timeline-copy">Hãy chờ câu chuyện thành công của tôi trong giai đoạn chuyển giao này nhé</p>
+              <h3 className="blog-timeline-title">03. Mission: AI In Production, At Scale</h3>
+              <p className="blog-timeline-meta">Applied AI Engineering | Research | Invention | Operations</p>
+              <p className="blog-timeline-copy">
+                Tôi đưa AI vào các bài toán nghiên cứu và sản xuất, không dừng ở demo mà chạy thật trong production, ở quy
+                mô lớn. Bạn có bài toán cần AI?{" "}
+                <Link href="/blog/ideas"><strong>Gửi ý tưởng cho tôi.</strong></Link>
+              </p>
             </div>
           </article>
         </div>
@@ -306,47 +307,60 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
 
       <section className="blog-expertise" id="knowledge">
         <div className="blog-expertise-copy">
-          <div className="blog-section-tag">Expertise Matrix</div>
-          <h2 className="blog-expertise-title">Fine-Tuned for Modern Finance.</h2>
+          <div className="blog-section-tag">Focus Areas</div>
+          <h2 className="blog-expertise-title">Applied AI, Built For Production.</h2>
 
           <div className="blog-expertise-list">
             <div className="blog-expertise-item">
-              <h3>Web3 & Decentralized Ecosystem</h3>
+              <h3>Production AI at Scale</h3>
               <p>
-                Hiểu sâu về cơ chế đồng thuận, tokenomics và cách thế giới phi tập trung vận hành quyền sở hữu dữ liệu.
+                Evaluation, observability, guardrails, tối ưu chi phí và độ trễ: những gì cần để AI chạy ổn định với người
+                dùng thật và tải thật.
               </p>
             </div>
 
             <div className="blog-expertise-item">
-              <h3>Virtual Banking Architecture</h3>
+              <h3>AI for Research</h3>
               <p>
-                Xây dựng cơ chế tài chính từ truyền thống sang tài sản số, đảm bảo thanh khoản và tính tuân thủ.
+                Hệ thống AI giúp đọc, tổng hợp và kết nối tri thức, để nhà nghiên cứu đi nhanh hơn từ dữ liệu đến giả
+                thuyết.
               </p>
             </div>
 
             <div className="blog-expertise-item">
-              <h3>Storytelling & Layered Analysis</h3>
-              <p>Bóc tách vấn đề theo nhiều lớp và kể câu chuyện sản phẩm đủ rõ để kết nối business, engineering và compliance.</p>
+              <h3>AI for Invention</h3>
+              <p>
+                Rút ngắn vòng lặp từ ý tưởng đến prototype: dùng AI để thử nghiệm, mô phỏng và build sản phẩm nhanh hơn
+                bao giờ hết.
+              </p>
+            </div>
+
+            <div className="blog-expertise-item">
+              <h3>AI for Operations &amp; Data Pipelines</h3>
+              <p>
+                Chuẩn hóa dữ liệu và tự động hóa quy trình vận hành, để tổ chức đạt được năng suất tối đa thay vì tốn
+                thời gian xử lý thủ công.
+              </p>
             </div>
           </div>
         </div>
 
         <div className="blog-expertise-quote">
           <blockquote>
-            "Product architecture is the way all the pieces of a product fit together to create something people actually want and can use"
+            &quot;Đưa AI từ demo vào production, ở quy mô lớn, để mọi ngành đạt được năng suất tối đa.&quot;
           </blockquote>
-          <p>Michael Balle</p>
+          <p>Bao, Applied AI Engineer</p>
         </div>
       </section>
 
       <section className="blog-vision" id="vision">
-        <div className="blog-section-tag">The 2030 Vision</div>
+        <div className="blog-section-tag">The Vision</div>
         <h2 className="blog-vision-title">
-          Architecting the Future of <span>Hybrid Finance.</span>
+          Every Industry At Its <span>Full Productivity.</span>
         </h2>
         <p className="blog-vision-copy">
-          Trong 5 năm tới, tôi muốn đứng ở điểm giao thoa giữa thế giới ảo và giá trị thật: xây dựng những sản phẩm tài
-          chính vừa dẫn đầu về công nghệ, vừa đủ bền vững để tạo tác động xã hội dài hạn.
+          Tôi tin AI sẽ là nền tảng cho sự phát triển của rất nhiều ngành. Là một Applied AI Engineer, tôi giúp các tổ
+          chức đưa AI vào production sớm, đúng cách, chạy ổn định ở quy mô lớn, và đạt được năng suất tối đa.
         </p>
         <a className="blog-primary-button" href="https://www.linkedin.com/in/iambao/">
           Liên hệ ngay
